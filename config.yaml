@@ -1,0 +1,118 @@
+# AutoResolve Configuration
+# Environment variables can be referenced with ${VAR_NAME}
+
+# Application
+app:
+  name: "AutoResolve"
+  version: "1.0.0"
+  debug: false
+  secret_key: "${APP_SECRET_KEY}"
+
+# GitHub Integration
+github:
+  app_id: ${GITHUB_APP_ID}
+  private_key_path: "/secrets/github-app.pem"
+  webhook_secret: "${GITHUB_WEBHOOK_SECRET}"
+  api_base_url: "https://api.github.com"
+  rate_limit_buffer: 100
+
+# Monitored Repositories (can also be managed via API)
+monitored_repos:
+  - "org/repo1"
+  - "org/repo2"
+
+# Filtering
+filtering:
+  trigger_labels:
+    - "bug"
+    - "error"
+    - "defect"
+  exclude_labels:
+    - "wontfix"
+    - "duplicate"
+  exclude_authors:
+    - "dependabot"
+    - "renovate"
+  min_body_length: 50
+  max_age_days: 30
+
+# Validation
+validation:
+  sandbox_timeout_seconds: 300
+  sandbox_memory_limit: "512m"
+  sandbox_network: "none"
+  clone_depth: 1
+  min_match_score: 0.6
+
+# Fix Generation
+fix_generation:
+  llm_provider: "openai"
+  llm_model: "gpt-4"
+  llm_temperature: 0.2
+  max_attempts: 3
+  max_diff_lines: 200
+  timeout_seconds: 120
+
+# Security Audit
+security:
+  enabled_scanners:
+    - "bandit"
+    - "semgrep"
+  semgrep_rulesets:
+    - "auto"
+    - "p/security-audit"
+    - "p/owasp-top-ten"
+  enable_dynamic_scan: false
+  auto_reject_severities:
+    - "critical"
+
+# Approval
+approval:
+  timeout_days: 7
+  poll_interval_minutes: 5
+  require_maintainer: true
+  auto_merge_enabled: true
+  auto_merge_method: "squash"
+
+# Notifications
+notifications:
+  slack:
+    enabled: false
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#autoresolve"
+  email:
+    enabled: false
+    smtp_host: "smtp.example.com"
+    smtp_port: 587
+
+# Database
+database:
+  url: "postgresql://autoresolve:${DB_PASSWORD}@localhost:5432/autoresolve"
+  pool_size: 10
+
+# Redis
+redis:
+  url: "redis://localhost:6379/0"
+
+# Celery
+celery:
+  broker_url: "amqp://guest:guest@localhost:5672//"
+  result_backend: "redis://localhost:6379/1"
+
+# API
+api:
+  host: "0.0.0.0"
+  port: 8000
+  api_key: "${API_KEY}"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "json"
+  output: "stdout"
+
+# Observability
+observability:
+  sentry_dsn: "${SENTRY_DSN}"
+  prometheus_enabled: true
+  prometheus_port: 9090
