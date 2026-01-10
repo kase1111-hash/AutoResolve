@@ -384,6 +384,45 @@ def count_diff_lines(parsed: ParsedDiff) -> tuple[int, int]:
     return added, removed
 
 
+def validate_diff_syntax(diff: str) -> tuple[bool, Optional[str]]:
+    """
+    Validate diff syntax without applying it.
+
+    Args:
+        diff: Unified diff text
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not diff or not diff.strip():
+        return False, "Empty diff"
+
+    # Check for basic diff markers
+    lines = diff.strip().split('\n')
+
+    has_file_header = any(line.startswith('---') for line in lines)
+    has_file_target = any(line.startswith('+++') for line in lines)
+    has_hunk_header = any(line.startswith('@@') for line in lines)
+
+    if not has_file_header:
+        return False, "Missing file header (--- a/...)"
+
+    if not has_file_target:
+        return False, "Missing target file (+++ b/...)"
+
+    if not has_hunk_header:
+        return False, "Missing hunk header (@@ ...)"
+
+    # Try to parse it
+    try:
+        parse_unified_diff(diff)
+        return True, None
+    except ValueError as e:
+        return False, str(e)
+    except Exception as e:
+        return False, f"Parse error: {str(e)}"
+
+
 async def generate_fix(
     issue: QueuedIssue,
     validation: ValidationResult,

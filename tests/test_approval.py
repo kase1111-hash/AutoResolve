@@ -159,7 +159,7 @@ class TestApprovalWorkflow:
             generated_at=datetime.utcnow() - timedelta(hours=1)
         )
 
-        with patch("modules.approval.GitHubService", return_value=mock_github_service):
+        with patch("services.github_service.GitHubService", return_value=mock_github_service):
             result = await poll_for_approval("test/repo", 123, proposal)
 
         assert result.status == "approved"
@@ -188,7 +188,7 @@ class TestApprovalWorkflow:
             generated_at=datetime.utcnow() - timedelta(hours=1)
         )
 
-        with patch("modules.approval.GitHubService", return_value=mock_github_service):
+        with patch("services.github_service.GitHubService", return_value=mock_github_service):
             result = await poll_for_approval("test/repo", 123, proposal)
 
         assert result.status == "rejected"
@@ -213,7 +213,7 @@ class TestApprovalWorkflow:
             generated_at=datetime.utcnow() - timedelta(hours=1)
         )
 
-        with patch("modules.approval.GitHubService", return_value=mock_github_service):
+        with patch("services.github_service.GitHubService", return_value=mock_github_service):
             result = await poll_for_approval("test/repo", 123, proposal)
 
         assert result.status == "approved"

@@ -166,14 +166,13 @@ def sample_diff() -> str:
     """Sample unified diff."""
     return """--- a/auth/login.py
 +++ b/auth/login.py
-@@ -40,7 +40,7 @@ def authenticate(username, password):
-     Authenticate a user with username and password.
-     \"\"\"
+@@ -1,5 +1,5 @@
+ def authenticate(username, password):
+     \"\"\"Authenticate a user.\"\"\"
 -    user = get_user(None)
 +    user = get_user(username)
-     if user and check_password(user, password):
-         return create_session(user)
-     return None
+     if user:
+         return True
 """
 
 

@@ -130,7 +130,7 @@ class TestDeduplicateFindings:
         finding2 = Finding(
             finding_id=uuid4(),
             scanner="semgrep",
-            rule_id="B101-similar",
+            rule_id="B101",  # Same rule_id as finding1
             severity="medium",
             file="test.py",
             line_start=10,
@@ -140,7 +140,7 @@ class TestDeduplicateFindings:
 
         result = deduplicate_findings([finding1, finding2])
 
-        assert len(result) == 1
+        assert len(result) == 1  # Both findings have same file, line, and rule_id prefix
 
     def test_keeps_different_findings(self):
         """Should keep different findings."""

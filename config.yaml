@@ -10,9 +10,9 @@ app:
 
 # GitHub Integration
 github:
-  app_id: ${GITHUB_APP_ID}
+  # app_id: ${GITHUB_APP_ID}  # Uncomment and set for production
   private_key_path: "/secrets/github-app.pem"
-  webhook_secret: "${GITHUB_WEBHOOK_SECRET}"
+  # webhook_secret: "${GITHUB_WEBHOOK_SECRET}"  # Uncomment and set for production
   api_base_url: "https://api.github.com"
   rate_limit_buffer: 100
 

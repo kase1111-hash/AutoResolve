@@ -44,24 +44,30 @@ def _expand_env_vars(obj: Any) -> Any:
 class AppSettings(BaseSettings):
     """Application-level settings."""
 
+    model_config = {"extra": "ignore"}
+
     name: str = "AutoResolve"
     version: str = "1.0.0"
     debug: bool = False
-    secret_key: str = Field(default="", alias="APP_SECRET_KEY")
+    secret_key: str = Field(default="")
 
 
 class GitHubSettings(BaseSettings):
     """GitHub integration settings."""
 
-    app_id: int = Field(default=0, alias="GITHUB_APP_ID")
+    model_config = {"extra": "ignore"}
+
+    app_id: int = Field(default=0)
     private_key_path: str = "/secrets/github-app.pem"
-    webhook_secret: str = Field(default="", alias="GITHUB_WEBHOOK_SECRET")
+    webhook_secret: str = Field(default="")
     api_base_url: str = "https://api.github.com"
     rate_limit_buffer: int = 100
 
 
 class FilterConfig(BaseSettings):
     """Issue filtering configuration."""
+
+    model_config = {"extra": "ignore"}
 
     trigger_labels: list[str] = ["bug", "error", "defect", "crash", "regression"]
     trigger_keywords: list[str] = [
@@ -79,6 +85,8 @@ class FilterConfig(BaseSettings):
 class MonitoringConfig(BaseSettings):
     """Monitoring module configuration."""
 
+    model_config = {"extra": "ignore"}
+
     webhook_path: str = "/webhook/github"
     poll_interval_minutes: int = 5
     poll_lookback_minutes: int = 10
@@ -93,6 +101,8 @@ class MonitoringConfig(BaseSettings):
 
 class ValidationConfig(BaseSettings):
     """Validation module configuration."""
+
+    model_config = {"extra": "ignore"}
 
     clone_depth: int = 1
     clone_timeout_seconds: int = 120
@@ -112,6 +122,8 @@ class ValidationConfig(BaseSettings):
 class FixGenerationConfig(BaseSettings):
     """Fix generation module configuration."""
 
+    model_config = {"extra": "ignore"}
+
     llm_provider: str = "openai"
     llm_model: str = "gpt-5-code"
     llm_temperature: float = 0.2
@@ -125,6 +137,8 @@ class FixGenerationConfig(BaseSettings):
 
 class SecurityAuditConfig(BaseSettings):
     """Security audit module configuration."""
+
+    model_config = {"extra": "ignore"}
 
     enabled_scanners: list[str] = ["bandit", "semgrep"]
     semgrep_rulesets: list[str] = ["auto", "p/security-audit", "p/owasp-top-ten"]
@@ -140,6 +154,8 @@ class SecurityAuditConfig(BaseSettings):
 class ApprovalConfig(BaseSettings):
     """Approval module configuration."""
 
+    model_config = {"extra": "ignore"}
+
     timeout_days: int = 7
     poll_interval_minutes: int = 5
     require_maintainer: bool = True
@@ -154,8 +170,10 @@ class ApprovalConfig(BaseSettings):
 class NotificationConfig(BaseSettings):
     """Notification configuration."""
 
+    model_config = {"extra": "ignore"}
+
     slack_enabled: bool = False
-    slack_webhook_url: str = Field(default="", alias="SLACK_WEBHOOK_URL")
+    slack_webhook_url: str = Field(default="")
     slack_channel: str = "#autoresolve"
     email_enabled: bool = False
     smtp_host: str = "smtp.example.com"
@@ -168,42 +186,43 @@ class NotificationConfig(BaseSettings):
 class DatabaseConfig(BaseSettings):
     """Database configuration."""
 
-    url: str = Field(
-        default="postgresql://autoresolve:password@localhost:5432/autoresolve",
-        alias="DATABASE_URL"
-    )
+    model_config = {"extra": "ignore"}
+
+    url: str = Field(default="postgresql://autoresolve:password@localhost:5432/autoresolve")
     pool_size: int = 10
 
 
 class RedisConfig(BaseSettings):
     """Redis configuration."""
 
-    url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    model_config = {"extra": "ignore"}
+
+    url: str = Field(default="redis://localhost:6379/0")
 
 
 class CeleryConfig(BaseSettings):
     """Celery configuration."""
 
-    broker_url: str = Field(
-        default="amqp://guest:guest@localhost:5672//",
-        alias="CELERY_BROKER_URL"
-    )
-    result_backend: str = Field(
-        default="redis://localhost:6379/1",
-        alias="CELERY_RESULT_BACKEND"
-    )
+    model_config = {"extra": "ignore"}
+
+    broker_url: str = Field(default="amqp://guest:guest@localhost:5672//")
+    result_backend: str = Field(default="redis://localhost:6379/1")
 
 
 class APIConfig(BaseSettings):
     """API configuration."""
 
+    model_config = {"extra": "ignore"}
+
     host: str = "0.0.0.0"
     port: int = 8000
-    api_key: str = Field(default="", alias="API_KEY")
+    api_key: str = Field(default="")
 
 
 class LoggingConfig(BaseSettings):
     """Logging configuration."""
+
+    model_config = {"extra": "ignore"}
 
     level: str = "INFO"
     format: str = "json"
@@ -213,7 +232,9 @@ class LoggingConfig(BaseSettings):
 class ObservabilityConfig(BaseSettings):
     """Observability configuration."""
 
-    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
+    model_config = {"extra": "ignore"}
+
+    sentry_dsn: str = Field(default="")
     prometheus_enabled: bool = True
     prometheus_port: int = 9090
 
@@ -271,7 +292,26 @@ class Settings(BaseSettings):
         if "approval" in yaml_config:
             settings.approval = ApprovalConfig(**{**settings.approval.model_dump(), **yaml_config["approval"]})
         if "notifications" in yaml_config:
-            settings.notifications = NotificationConfig(**{**settings.notifications.model_dump(), **yaml_config["notifications"]})
+            notif_config = yaml_config["notifications"]
+            # Handle nested slack/email structure from YAML
+            flat_notif = {}
+            if "slack" in notif_config:
+                slack = notif_config["slack"]
+                if "enabled" in slack:
+                    flat_notif["slack_enabled"] = slack["enabled"]
+                if "webhook_url" in slack:
+                    flat_notif["slack_webhook_url"] = slack["webhook_url"]
+                if "channel" in slack:
+                    flat_notif["slack_channel"] = slack["channel"]
+            if "email" in notif_config:
+                email = notif_config["email"]
+                if "enabled" in email:
+                    flat_notif["email_enabled"] = email["enabled"]
+                if "smtp_host" in email:
+                    flat_notif["smtp_host"] = email["smtp_host"]
+                if "smtp_port" in email:
+                    flat_notif["smtp_port"] = email["smtp_port"]
+            settings.notifications = NotificationConfig(**{**settings.notifications.model_dump(), **flat_notif})
         if "database" in yaml_config:
             settings.database = DatabaseConfig(**{**settings.database.model_dump(), **yaml_config["database"]})
         if "redis" in yaml_config:
