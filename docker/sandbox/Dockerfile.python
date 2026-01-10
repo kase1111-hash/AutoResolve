@@ -1,0 +1,56 @@
+# AutoResolve Python Sandbox Image
+# Used for reproducing Python-based issues in isolation
+
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim
+
+LABEL maintainer="AutoResolve Team"
+LABEL description="Isolated Python sandbox for bug reproduction"
+
+# Security: Run as non-root user
+RUN groupadd -r sandbox && useradd -r -g sandbox sandbox
+
+# Install common development tools and testing frameworks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install common Python testing tools
+RUN pip install --no-cache-dir \
+    pytest>=7.4 \
+    pytest-cov>=4.1 \
+    pytest-asyncio>=0.23 \
+    pytest-timeout>=2.2 \
+    unittest2>=1.1 \
+    hypothesis>=6.92 \
+    coverage>=7.3 \
+    tox>=4.11 \
+    mypy>=1.8 \
+    flake8>=7.0 \
+    black>=24.1 \
+    isort>=5.13
+
+# Set working directory
+WORKDIR /code
+
+# Set resource limits via environment
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Security: Drop capabilities and set read-only root filesystem
+# These are enforced at runtime, but documented here
+# --cap-drop=ALL --read-only --security-opt=no-new-privileges
+
+# Default command: run tests
+CMD ["pytest", "-v", "--tb=short", "--timeout=300"]
+
+# Health check for container monitoring
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Switch to non-root user
+USER sandbox
