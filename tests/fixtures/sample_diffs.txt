@@ -1,0 +1,83 @@
+# Sample Diff 1: Simple Python Fix
+# Fixes a None parameter bug in authentication
+
+--- a/auth/login.py
++++ b/auth/login.py
+@@ -40,7 +40,7 @@ def authenticate(username, password):
+     Authenticate a user with username and password.
+     """
+-    user = get_user(None)
++    user = get_user(username)
+     if user and check_password(user, password):
+         return create_session(user)
+     return None
+
+# Sample Diff 2: JavaScript Null Check
+# Adds null check before array operation
+
+--- a/src/components/UserList.js
++++ b/src/components/UserList.js
+@@ -12,7 +12,11 @@ function UserList({ users }) {
+   return (
+     <div className="user-list">
+-      {users.map(user => (
++      {users && users.map(user => (
+         <UserCard key={user.id} user={user} />
+       ))}
++      {!users && (
++        <p>No users found</p>
++      )}
+     </div>
+   );
+ }
+
+# Sample Diff 3: Java Null Check
+# Adds null check before method invocation
+
+--- a/src/main/java/com/example/OrderService.java
++++ b/src/main/java/com/example/OrderService.java
+@@ -42,6 +42,9 @@ public class OrderService {
+     }
+
+     public void processOrder(Order order) {
++        if (order == null) {
++            throw new IllegalArgumentException("Order cannot be null");
++        }
+         order.validate();
+         orderRepository.save(order);
+     }
+
+# Sample Diff 4: Multi-file Python Fix
+# Fixes import and usage issues
+
+--- a/app/utils.py
++++ b/app/utils.py
+@@ -1,4 +1,5 @@
+ from typing import Optional
++from datetime import datetime
+
+ def format_date(date: Optional[str]) -> str:
+-    return date or "N/A"
++    return datetime.fromisoformat(date).strftime("%Y-%m-%d") if date else "N/A"
+--- a/app/views.py
++++ b/app/views.py
+@@ -10,7 +10,7 @@ def show_profile(user_id: int):
+     user = get_user(user_id)
+     if user:
+-        return {"name": user.name, "joined": user.created_at}
++        return {"name": user.name, "joined": format_date(user.created_at)}
+     return {"error": "User not found"}
+
+# Sample Diff 5: Security Fix
+# Fixes SQL injection vulnerability
+
+--- a/db/queries.py
++++ b/db/queries.py
+@@ -15,7 +15,7 @@ def get_user_by_email(email: str):
+     """
+     Retrieve user by email address.
+     """
+-    query = f"SELECT * FROM users WHERE email = '{email}'"
+-    return db.execute(query).fetchone()
++    query = "SELECT * FROM users WHERE email = ?"
++    return db.execute(query, (email,)).fetchone()
