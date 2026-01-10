@@ -81,10 +81,10 @@ class TestDetectLanguage:
         assert detect_language(str(tmp_path)) == "python"
 
     def test_detects_javascript(self, tmp_path):
-        """Should detect JavaScript by package.json."""
+        """Should detect JavaScript/Node.js by package.json."""
         (tmp_path / "package.json").write_text('{"name": "test"}')
 
-        assert detect_language(str(tmp_path)) == "javascript"
+        assert detect_language(str(tmp_path)) == "node"
 
     def test_detects_go(self, tmp_path):
         """Should detect Go by go.mod."""
