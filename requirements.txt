@@ -1,0 +1,59 @@
+# Core
+python-multipart>=0.0.6
+fastapi>=0.109
+uvicorn>=0.27
+pydantic>=2.5
+pydantic-settings>=2.1
+
+# Database
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+alembic>=1.13
+
+# Task Queue
+celery>=5.3
+amqp>=5.2
+
+# Redis
+redis>=5.0
+
+# GitHub
+PyGithub>=2.1
+gitpython>=3.1
+
+# LLM
+openai>=1.0
+tiktoken>=0.5
+
+# NLP
+spacy>=3.7
+
+# Security Scanning
+bandit>=1.7
+
+# Docker
+docker>=7.0
+
+# HTTP
+requests>=2.31
+httpx>=0.26
+
+# Parsing
+unidiff>=0.7
+
+# Utilities
+python-dotenv>=1.0
+pyyaml>=6.0
+jinja2>=3.1
+
+# Testing
+pytest>=7.4
+pytest-asyncio>=0.23
+pytest-cov>=4.1
+pytest-httpx>=0.28
+locust>=2.20
+
+# Observability
+sentry-sdk>=1.39
+prometheus-client>=0.19
+structlog>=24.1
