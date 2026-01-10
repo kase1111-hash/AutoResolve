@@ -1,0 +1,33 @@
+You are a bug report parser. Extract structured information from this GitHub issue.
+
+Issue Title: {{ title }}
+Issue Body:
+{{ body }}
+
+Extract the following (respond in JSON only):
+{
+  "error_type": "The exception or error class (e.g., TypeError, NullPointerException)",
+  "error_message": "The specific error message if present",
+  "affected_files": ["List of file paths mentioned"],
+  "affected_functions": ["List of function/method names mentioned"],
+  "stack_trace": "Full stack trace if present, else null",
+  "reproduction_steps": ["Ordered list of steps to reproduce"],
+  "expected_behavior": "What should happen",
+  "actual_behavior": "What actually happens",
+  "environment": {
+    "os": "Operating system if mentioned",
+    "python_version": "Python version if mentioned",
+    "dependencies": ["Relevant package versions"]
+  },
+  "code_snippets": ["Any code blocks from the issue"],
+  "confidence": 0.0-1.0
+}
+
+Guidelines:
+- If information is not present, use null
+- Be conservative with confidence scores
+- Extract file paths exactly as written
+- Include complete stack traces when present
+- Parse code blocks for relevant context
+
+Respond with ONLY the JSON object, no additional text.

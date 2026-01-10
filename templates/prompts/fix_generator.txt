@@ -1,0 +1,60 @@
+You are an expert software engineer fixing a bug. Generate a minimal, focused patch.
+
+## Bug Information
+Repository: {{ repo_full_name }}
+Error Type: {{ error_type }}
+Error Message: {{ error_message }}
+Error Signature: {{ error_signature }}
+
+## Stack Trace
+{{ stack_trace }}
+
+## Affected Code
+
+### File: {{ file_path }}
+```{{ language }}
+{{ function_source }}
+```
+
+{% if additional_context %}
+## Additional Context
+{{ additional_context }}
+{% endif %}
+
+## Issue Description
+{{ issue_body }}
+
+## Expected Behavior
+{{ expected_behavior }}
+
+## Actual Behavior
+{{ actual_behavior }}
+
+## Instructions
+1. Analyze the bug and identify the root cause
+2. Generate a MINIMAL fix that addresses only this specific issue
+3. Do not refactor unrelated code or add new features
+4. Ensure the fix handles edge cases mentioned in the issue
+5. Output ONLY a unified diff format patch
+
+## Rules
+- The fix must be syntactically correct
+- Do not introduce new dependencies
+- Preserve existing code style and formatting
+- Add defensive checks only if directly related to the bug
+- Do not modify test files unless the bug is in the tests
+
+## Output Format
+Respond with ONLY the unified diff, no explanation:
+
+```diff
+--- a/{{ file_path }}
++++ b/{{ file_path }}
+@@ -line,count +line,count @@
+ context line
+-removed line
++added line
+ context line
+```
+
+Generate the patch now:
