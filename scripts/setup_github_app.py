@@ -88,7 +88,7 @@ def setup_interactive():
 
     # Save manifest
     manifest_path = Path("github_app_manifest.json")
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding='utf-8') as f:
         f.write(manifest_json)
     print_info(f"Saved to {manifest_path}")
 
@@ -225,7 +225,7 @@ def validate_config():
     if not env_path.exists():
         errors.append(".env file not found")
     else:
-        env_content = env_path.read_text()
+        env_content = env_path.read_text(encoding='utf-8')
         required_vars = [
             "GITHUB_APP_ID",
             "GITHUB_WEBHOOK_SECRET",
@@ -235,7 +235,7 @@ def validate_config():
         for var in required_vars:
             if var not in env_content:
                 errors.append(f"Missing {var} in .env")
-            elif f"{var}=your-" in env_content or f"{var}=" in env_content.split(var)[1].split('\n')[0].strip() == "":
+            elif f"{var}=your-" in env_content or (f"{var}=" in env_content and env_content.split(f"{var}=")[1].split('\n')[0].strip() == ""):
                 warnings.append(f"{var} appears to be a placeholder")
 
     # Check secrets

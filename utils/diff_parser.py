@@ -65,7 +65,7 @@ def parse_unified_diff(diff_text: str) -> ParsedDiff:
         return ParsedDiff(files=files)
 
     except Exception as e:
-        raise ValueError(f"Invalid diff format: {e}")
+        raise ValueError(f"Invalid diff format: {e}") from e
 
 
 def extract_diff_from_text(text: str) -> Optional[str]:
@@ -154,7 +154,7 @@ def apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write original content
         file_full_path = os.path.join(tmpdir, os.path.basename(file_path))
-        with open(file_full_path, 'w') as f:
+        with open(file_full_path, 'w', encoding='utf-8') as f:
             f.write(content)
 
         # Try to apply patch with different strip levels
@@ -163,13 +163,14 @@ def apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
                 ["patch", f"-p{strip_level}", "-i", "-"],
                 input=diff.encode(),
                 cwd=tmpdir,
-                capture_output=True
+                capture_output=True,
+                check=False
             )
             if result.returncode == 0:
                 break
 
         # Read patched content
-        with open(file_full_path) as f:
+        with open(file_full_path, encoding='utf-8') as f:
             return f.read()
 
 

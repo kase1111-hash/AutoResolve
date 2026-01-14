@@ -220,14 +220,14 @@ async def send_email_notification(
 
 
 def format_notification_details(
-    event_type: str,
+    _event_type: str,
     data: dict
 ) -> dict:
     """
     Format notification details for display.
 
     Args:
-        event_type: Type of event
+        _event_type: Type of event (reserved for future use)
         data: Raw event data
 
     Returns:
