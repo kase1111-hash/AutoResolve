@@ -221,48 +221,54 @@ OPENAI_API_KEY=your-openai-api-key-here
     print()
 
 
-def validate_config():
-    """Validate existing configuration."""
-    print("\nValidating AutoResolve configuration...\n")
+def _is_placeholder_value(env_content: str, var: str) -> bool:
+    """Check if an environment variable has a placeholder value."""
+    if f"{var}=your-" in env_content:
+        return True
+    if f"{var}=" not in env_content:
+        return False
+    value = env_content.split(f"{var}=")[1].split("\n")[0].strip()
+    return value == ""
 
+
+def _validate_env_file() -> tuple[list[str], list[str]]:
+    """Validate .env file contents."""
     errors = []
     warnings = []
-
-    # Check .env
     env_path = Path(".env")
+
     if not env_path.exists():
         errors.append(".env file not found")
-    else:
-        env_content = env_path.read_text(encoding="utf-8")
-        required_vars = [
-            "GITHUB_APP_ID",
-            "GITHUB_WEBHOOK_SECRET",
-            "DATABASE_URL",
-            "OPENAI_API_KEY",
-        ]
-        for var in required_vars:
-            if var not in env_content:
-                errors.append(f"Missing {var} in .env")
-            elif f"{var}=your-" in env_content or (
-                f"{var}=" in env_content
-                and env_content.split(f"{var}=")[1].split("\n")[0].strip() == ""
-            ):
-                warnings.append(f"{var} appears to be a placeholder")
+        return errors, warnings
 
-    # Check secrets
+    env_content = env_path.read_text(encoding="utf-8")
+    required_vars = ["GITHUB_APP_ID", "GITHUB_WEBHOOK_SECRET", "DATABASE_URL", "OPENAI_API_KEY"]
+
+    for var in required_vars:
+        if var not in env_content:
+            errors.append(f"Missing {var} in .env")
+        elif _is_placeholder_value(env_content, var):
+            warnings.append(f"{var} appears to be a placeholder")
+
+    return errors, warnings
+
+
+def _validate_secrets_dir() -> tuple[list[str], list[str]]:
+    """Validate secrets directory contents."""
+    errors = []
+    warnings = []
     secrets_dir = Path("secrets")
-    if secrets_dir.exists():
-        if not (secrets_dir / "github_private_key.pem").exists():
-            errors.append("GitHub private key not found in secrets/")
-    else:
+
+    if not secrets_dir.exists():
         warnings.append("secrets/ directory not found")
+    elif not (secrets_dir / "github_private_key.pem").exists():
+        errors.append("GitHub private key not found in secrets/")
 
-    # Check config.yaml
-    config_path = Path("config.yaml")
-    if not config_path.exists():
-        warnings.append("config.yaml not found (will use defaults)")
+    return errors, warnings
 
-    # Report
+
+def _print_validation_report(errors: list[str], warnings: list[str]) -> bool:
+    """Print validation results and return success status."""
     if errors:
         print("ERRORS:")
         for error in errors:
@@ -275,12 +281,30 @@ def validate_config():
 
     if not errors and not warnings:
         print("✓ All configuration looks good!")
-        return True
 
     return len(errors) == 0
 
 
+def validate_config():
+    """Validate existing configuration."""
+    print("\nValidating AutoResolve configuration...\n")
+
+    # Collect all errors and warnings
+    env_errors, env_warnings = _validate_env_file()
+    secrets_errors, secrets_warnings = _validate_secrets_dir()
+
+    errors = env_errors + secrets_errors
+    warnings = env_warnings + secrets_warnings
+
+    # Check config.yaml
+    if not Path("config.yaml").exists():
+        warnings.append("config.yaml not found (will use defaults)")
+
+    return _print_validation_report(errors, warnings)
+
+
 def main():
+    """Entry point for the GitHub App setup helper CLI."""
     parser = argparse.ArgumentParser(description="AutoResolve GitHub App setup helper")
     parser.add_argument(
         "--validate", action="store_true", help="Validate existing configuration"
