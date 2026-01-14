@@ -17,9 +17,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
 from app.main import app
-from models.database import Base, Issue, FixProposal, Validation
-from models.schemas import QueuedIssue, IssueContext
-
+from models.database import Base, FixProposal, Issue, Validation
+from models.schemas import IssueContext, QueuedIssue
 
 # Test database URL (SQLite in memory)
 TEST_DATABASE_URL = "sqlite:///:memory:"

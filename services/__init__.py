@@ -7,8 +7,8 @@ Services for AutoResolve.
 - notification_service: Slack and email notifications
 """
 
+from services.docker_service import DockerService
 from services.github_service import GitHubService
 from services.llm_service import LLMService
-from services.docker_service import DockerService
 
 __all__ = ["GitHubService", "LLMService", "DockerService"]

@@ -7,7 +7,7 @@ Provides request/response logging and correlation IDs.
 import logging
 import time
 import uuid
-from typing import Callable
+from typing import Callable, Optional
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -164,7 +164,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
         response: Response,
-        body: bytes = None
+        body: Optional[bytes] = None
     ):
         """Create an audit log entry in the database."""
         try:

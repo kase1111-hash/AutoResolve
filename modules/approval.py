@@ -447,9 +447,9 @@ async def create_pull_request(
 
 def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
     """Apply a unified diff to file content."""
+    import os
     import subprocess
     import tempfile
-    import os
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write original content
@@ -515,7 +515,9 @@ async def handle_rejection(
         proposal: The rejected proposal
         approval: Rejection result
     """
-    from models.database import get_session_factory, FixProposal as DBFixProposal, AuditLog
+    from models.database import AuditLog
+    from models.database import FixProposal as DBFixProposal
+    from models.database import get_session_factory
 
     SessionLocal = get_session_factory()
     db = SessionLocal()
@@ -571,7 +573,8 @@ async def handle_expiry(proposal: FixProposal) -> None:
     )
 
     # Update database
-    from models.database import get_session_factory, FixProposal as DBFixProposal
+    from models.database import FixProposal as DBFixProposal
+    from models.database import get_session_factory
 
     SessionLocal = get_session_factory()
     db = SessionLocal()

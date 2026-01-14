@@ -13,9 +13,13 @@ from celery import shared_task
 from app.config import get_settings
 from models.database import (
     Approval,
-    FixProposal as DBFixProposal,
+)
+from models.database import FixProposal as DBFixProposal
+from models.database import (
     Issue,
-    SecurityReport as DBSecurityReport,
+)
+from models.database import SecurityReport as DBSecurityReport
+from models.database import (
     Validation,
     get_session_factory,
 )
@@ -65,7 +69,8 @@ def process_issue(self, issue_id: int):
 
         # Step 1: Validate
         import asyncio
-        from modules.validation import validate_issue, clone_repository
+
+        from modules.validation import clone_repository, validate_issue
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

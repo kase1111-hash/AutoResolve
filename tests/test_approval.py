@@ -2,17 +2,18 @@
 Tests for the approval module.
 """
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import pytest
+
+from models.schemas import Finding, SecurityReport
 from modules.approval import (
-    format_security_summary,
-    _extract_reason,
     _extract_feedback,
+    _extract_reason,
+    format_security_summary,
 )
-from models.schemas import SecurityReport, Finding
 
 
 class TestFormatSecuritySummary:
@@ -148,8 +149,8 @@ class TestApprovalWorkflow:
         ])
         mock_github_service.get_issue_reactions = AsyncMock(return_value=[])
 
-        from modules.approval import poll_for_approval
         from models.schemas import FixProposal
+        from modules.approval import poll_for_approval
 
         proposal = FixProposal(
             proposal_id=uuid4(),
@@ -177,8 +178,8 @@ class TestApprovalWorkflow:
         ])
         mock_github_service.get_issue_reactions = AsyncMock(return_value=[])
 
-        from modules.approval import poll_for_approval
         from models.schemas import FixProposal
+        from modules.approval import poll_for_approval
 
         proposal = FixProposal(
             proposal_id=uuid4(),
@@ -202,8 +203,8 @@ class TestApprovalWorkflow:
             {"user": {"login": "maintainer"}, "content": "+1"}
         ])
 
-        from modules.approval import poll_for_approval
         from models.schemas import FixProposal
+        from modules.approval import poll_for_approval
 
         proposal = FixProposal(
             proposal_id=uuid4(),

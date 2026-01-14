@@ -77,7 +77,7 @@ async def handle_github_webhook(
         return {"status": "ignored", "reason": f"action '{action}' not processed"}
 
     # Import here to avoid circular imports
-    from modules.monitoring import should_process, is_already_queued, enqueue_issue
+    from modules.monitoring import enqueue_issue, is_already_queued, should_process
 
     issue = payload.get("issue", {})
     repo = payload.get("repository", {})

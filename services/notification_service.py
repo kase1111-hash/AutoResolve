@@ -181,8 +181,8 @@ async def send_email_notification(
 
     try:
         import smtplib
-        from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
 
         msg = MIMEMultipart()
         msg["From"] = settings.notifications.email_from

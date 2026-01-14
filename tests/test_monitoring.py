@@ -3,14 +3,14 @@ Tests for the monitoring module.
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.config import FilterConfig
 from modules.monitoring import (
-    should_process,
+    compute_priority,
     is_already_queued,
     mark_as_queued,
-    compute_priority,
+    should_process,
 )
 
 

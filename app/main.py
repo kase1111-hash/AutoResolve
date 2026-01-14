@@ -11,8 +11,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.routes import issues, proposals, repos, webhook
 from app.config import get_settings
-from api.routes import webhook, repos, issues, proposals
 from models.database import init_db
 from models.schemas import HealthResponse
 
@@ -141,7 +141,8 @@ async def health_check():
 async def get_stats():
     """Get system statistics."""
     from sqlalchemy import func
-    from models.database import get_session_factory, Issue, FixProposal, SecurityReport
+
+    from models.database import FixProposal, Issue, SecurityReport, get_session_factory
 
     SessionLocal = get_session_factory()
     db = SessionLocal()

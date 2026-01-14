@@ -5,7 +5,7 @@ Repository management API routes for AutoResolve.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import get_settings

@@ -3,12 +3,12 @@ Tests for the validation module.
 """
 
 from modules.validation import (
-    _fallback_parse,
-    detect_language,
-    get_sandbox_image,
     _compute_similarity,
     _extract_error_signature,
+    _fallback_parse,
     _is_code_file,
+    detect_language,
+    get_sandbox_image,
 )
 
 

@@ -10,6 +10,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 def print_step(step: int, message: str):
@@ -24,7 +25,7 @@ def print_info(message: str):
     print(f"  → {message}")
 
 
-def get_input(prompt: str, default: str = None) -> str:
+def get_input(prompt: str, default: Optional[str] = None) -> str:
     """Get user input with optional default."""
     if default:
         result = input(f"  {prompt} [{default}]: ").strip()

@@ -526,8 +526,9 @@ async def regenerate_fix(
     settings = get_settings()
 
     # Clone repository again
-    from modules.validation import clone_repository
     import shutil
+
+    from modules.validation import clone_repository
 
     repo_dir = None
     try:

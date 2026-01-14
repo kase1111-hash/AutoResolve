@@ -6,17 +6,17 @@ API middleware for AutoResolve.
 """
 
 from api.middleware.auth import (
-    verify_api_key_header,
-    get_current_user,
     RateLimiter,
+    get_current_user,
     require_maintainer,
+    verify_api_key_header,
 )
 from api.middleware.logging import (
-    RequestLoggingMiddleware,
-    CorrelationIDMiddleware,
     AuditLogMiddleware,
-    get_request_id,
+    CorrelationIDMiddleware,
+    RequestLoggingMiddleware,
     get_correlation_id,
+    get_request_id,
     setup_middleware,
 )
 

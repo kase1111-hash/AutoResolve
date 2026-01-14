@@ -7,7 +7,6 @@ Detects programming languages in repositories and files.
 from pathlib import Path
 from typing import Optional
 
-
 # Language indicators - files that indicate a specific language
 LANGUAGE_INDICATORS = {
     "python": [

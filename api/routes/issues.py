@@ -5,12 +5,12 @@ Issue management API routes for AutoResolve.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.dependencies import get_db
-from models.database import Issue, Validation, FixProposal, Approval
+from models.database import Approval, FixProposal, Issue, Validation
 from models.schemas import IssueResponse
 
 logger = logging.getLogger(__name__)

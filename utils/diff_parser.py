@@ -147,9 +147,9 @@ def apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
     Returns:
         Patched content
     """
+    import os
     import subprocess
     import tempfile
-    import os
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write original content

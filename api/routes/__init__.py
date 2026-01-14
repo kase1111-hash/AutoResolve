@@ -2,6 +2,6 @@
 API routes for AutoResolve.
 """
 
-from api.routes import webhook, repos, issues, proposals
+from api.routes import issues, proposals, repos, webhook
 
 __all__ = ["webhook", "repos", "issues", "proposals"]

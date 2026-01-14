@@ -2,12 +2,12 @@
 Tests for the fix generation module.
 """
 
+from models.schemas import ParsedDiff
 from modules.fix_generator import (
+    count_diff_lines,
     extract_diff,
     validate_diff_syntax,
-    count_diff_lines,
 )
-from models.schemas import ParsedDiff
 
 
 class TestExtractDiff:

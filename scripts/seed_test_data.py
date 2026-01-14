@@ -11,6 +11,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 from uuid import uuid4
 
 # Add parent directory to path for imports
@@ -183,12 +184,13 @@ def get_sample_proposals():
     ]
 
 
-def seed_database(db_url: str = None):
+def seed_database(db_url: Optional[str] = None):
     """Seed the database with test data."""
     try:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        from models.database import Base, Issue, FixProposal, Approval, MonitoredRepo
+
+        from models.database import Approval, Base, FixProposal, Issue, MonitoredRepo
     except ImportError as e:
         print(f"Error importing models: {e}")
         print("Make sure you're running from the project root with dependencies installed.")
@@ -340,12 +342,20 @@ def seed_fixtures():
     print("\n✓ Fixtures created successfully!")
 
 
-def clear_database(db_url: str = None):
+def clear_database(db_url: Optional[str] = None):
     """Clear all test data from database."""
     try:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        from models.database import Issue, FixProposal, Approval, Validation, SecurityReport, AuditLog
+
+        from models.database import (
+            Approval,
+            AuditLog,
+            FixProposal,
+            Issue,
+            SecurityReport,
+            Validation,
+        )
     except ImportError as e:
         print(f"Error importing models: {e}")
         return False

@@ -2,16 +2,17 @@
 Tests for the security audit module.
 """
 
-import pytest
 from uuid import uuid4
 
+import pytest
+
+from models.schemas import Finding, SecurityReport
 from modules.security_auditor import (
     assess_severity,
     compute_risk_score,
     deduplicate_findings,
     generate_recommendation,
 )
-from models.schemas import Finding, SecurityReport
 
 
 @pytest.fixture

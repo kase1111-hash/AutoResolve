@@ -12,7 +12,9 @@ from celery import shared_task
 from app.config import get_settings
 from models.database import (
     Approval,
-    FixProposal as DBFixProposal,
+)
+from models.database import FixProposal as DBFixProposal
+from models.database import (
     Issue,
     MonitoredRepo,
     get_session_factory,
@@ -46,7 +48,7 @@ def poll_approval(proposal_id: int):
         issue = proposal.issue
 
         from models.schemas import FixProposal
-        from modules.approval import poll_for_approval, handle_rejection, handle_expiry
+        from modules.approval import handle_expiry, handle_rejection, poll_for_approval
 
         # Create schema object
         fix_proposal = FixProposal(
