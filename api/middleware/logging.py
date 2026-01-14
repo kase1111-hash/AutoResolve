@@ -19,6 +19,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware to log all HTTP requests and responses."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """Process request with logging of start, completion, and errors."""
         # Generate request ID
         request_id = str(uuid.uuid4())[:8]
         request.state.request_id = request_id
@@ -89,6 +90,7 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
     CORRELATION_ID_HEADER = "X-Correlation-ID"
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """Process request with correlation ID propagation."""
         # Get or generate correlation ID
         correlation_id = request.headers.get(
             self.CORRELATION_ID_HEADER, str(uuid.uuid4())
@@ -126,6 +128,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
     }
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """Process request and create audit log entries for sensitive operations."""
         # Check if this path should be audited
         should_audit = False
         for path_prefix, methods in self.AUDITED_PATHS.items():

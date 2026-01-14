@@ -284,95 +284,75 @@ class Settings(BaseSettings):
     @classmethod
     def _merge_yaml_config(cls, settings: "Settings", yaml_config: dict) -> "Settings":
         """Merge YAML configuration into settings."""
-        if "app" in yaml_config:
-            settings.app = AppSettings(
-                **{**settings.app.model_dump(), **yaml_config["app"]}
-            )
-        if "github" in yaml_config:
-            settings.github = GitHubSettings(
-                **{**settings.github.model_dump(), **yaml_config["github"]}
-            )
-        if "filtering" in yaml_config:
-            settings.filtering = FilterConfig(
-                **{**settings.filtering.model_dump(), **yaml_config["filtering"]}
-            )
-        if "monitoring" in yaml_config:
-            settings.monitoring = MonitoringConfig(
-                **{**settings.monitoring.model_dump(), **yaml_config["monitoring"]}
-            )
-        if "validation" in yaml_config:
-            settings.validation = ValidationConfig(
-                **{**settings.validation.model_dump(), **yaml_config["validation"]}
-            )
-        if "fix_generation" in yaml_config:
-            settings.fix_generation = FixGenerationConfig(
-                **{
-                    **settings.fix_generation.model_dump(),
-                    **yaml_config["fix_generation"],
-                }
-            )
-        if "security" in yaml_config:
-            settings.security = SecurityAuditConfig(
-                **{**settings.security.model_dump(), **yaml_config["security"]}
-            )
-        if "approval" in yaml_config:
-            settings.approval = ApprovalConfig(
-                **{**settings.approval.model_dump(), **yaml_config["approval"]}
-            )
+        # Mapping of YAML keys to (attribute name, config class)
+        config_mapping = {
+            "app": ("app", AppSettings),
+            "github": ("github", GitHubSettings),
+            "filtering": ("filtering", FilterConfig),
+            "monitoring": ("monitoring", MonitoringConfig),
+            "validation": ("validation", ValidationConfig),
+            "fix_generation": ("fix_generation", FixGenerationConfig),
+            "security": ("security", SecurityAuditConfig),
+            "approval": ("approval", ApprovalConfig),
+            "database": ("database", DatabaseConfig),
+            "redis": ("redis", RedisConfig),
+            "celery": ("celery", CeleryConfig),
+            "api": ("api", APIConfig),
+            "logging": ("logging", LoggingConfig),
+            "observability": ("observability", ObservabilityConfig),
+        }
+
+        # Merge standard config sections
+        for yaml_key, (attr_name, config_class) in config_mapping.items():
+            if yaml_key in yaml_config:
+                current = getattr(settings, attr_name)
+                merged = {**current.model_dump(), **yaml_config[yaml_key]}
+                setattr(settings, attr_name, config_class(**merged))
+
+        # Handle notifications with nested structure
         if "notifications" in yaml_config:
-            notif_config = yaml_config["notifications"]
-            # Handle nested slack/email structure from YAML
-            flat_notif = {}
-            if "slack" in notif_config:
-                slack = notif_config["slack"]
-                if "enabled" in slack:
-                    flat_notif["slack_enabled"] = slack["enabled"]
-                if "webhook_url" in slack:
-                    flat_notif["slack_webhook_url"] = slack["webhook_url"]
-                if "channel" in slack:
-                    flat_notif["slack_channel"] = slack["channel"]
-            if "email" in notif_config:
-                email = notif_config["email"]
-                if "enabled" in email:
-                    flat_notif["email_enabled"] = email["enabled"]
-                if "smtp_host" in email:
-                    flat_notif["smtp_host"] = email["smtp_host"]
-                if "smtp_port" in email:
-                    flat_notif["smtp_port"] = email["smtp_port"]
-            settings.notifications = NotificationConfig(
-                **{**settings.notifications.model_dump(), **flat_notif}
+            settings.notifications = cls._merge_notification_config(
+                settings.notifications, yaml_config["notifications"]
             )
-        if "database" in yaml_config:
-            settings.database = DatabaseConfig(
-                **{**settings.database.model_dump(), **yaml_config["database"]}
-            )
-        if "redis" in yaml_config:
-            settings.redis = RedisConfig(
-                **{**settings.redis.model_dump(), **yaml_config["redis"]}
-            )
-        if "celery" in yaml_config:
-            settings.celery = CeleryConfig(
-                **{**settings.celery.model_dump(), **yaml_config["celery"]}
-            )
-        if "api" in yaml_config:
-            settings.api = APIConfig(
-                **{**settings.api.model_dump(), **yaml_config["api"]}
-            )
-        if "logging" in yaml_config:
-            settings.logging = LoggingConfig(
-                **{**settings.logging.model_dump(), **yaml_config["logging"]}
-            )
-        if "observability" in yaml_config:
-            settings.observability = ObservabilityConfig(
-                **{
-                    **settings.observability.model_dump(),
-                    **yaml_config["observability"],
-                }
-            )
+
+        # Handle monitored_repos list
         if "monitored_repos" in yaml_config:
             settings.monitored_repos = yaml_config["monitored_repos"]
 
         return settings
+
+    @classmethod
+    def _merge_notification_config(
+        cls, current: NotificationConfig, notif_config: dict
+    ) -> NotificationConfig:
+        """Merge notification configuration with nested slack/email support."""
+        flat_notif = {}
+
+        # Flatten nested slack config
+        if "slack" in notif_config:
+            slack = notif_config["slack"]
+            slack_mapping = {
+                "enabled": "slack_enabled",
+                "webhook_url": "slack_webhook_url",
+                "channel": "slack_channel",
+            }
+            for src_key, dest_key in slack_mapping.items():
+                if src_key in slack:
+                    flat_notif[dest_key] = slack[src_key]
+
+        # Flatten nested email config
+        if "email" in notif_config:
+            email = notif_config["email"]
+            email_mapping = {
+                "enabled": "email_enabled",
+                "smtp_host": "smtp_host",
+                "smtp_port": "smtp_port",
+            }
+            for src_key, dest_key in email_mapping.items():
+                if src_key in email:
+                    flat_notif[dest_key] = email[src_key]
+
+        return NotificationConfig(**{**current.model_dump(), **flat_notif})
 
 
 # Global settings instance

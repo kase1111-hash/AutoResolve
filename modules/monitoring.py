@@ -28,6 +28,30 @@ def get_redis_client() -> redis.Redis:
     return _redis_client
 
 
+def _is_excluded_by_label(labels: list[str], exclude_labels: list[str]) -> bool:
+    """Check if issue should be excluded by label."""
+    return any(label in exclude_labels for label in labels)
+
+
+def _is_too_old(created_at: str, max_age_days: int) -> bool:
+    """Check if issue is too old to process."""
+    if not created_at:
+        return False
+    try:
+        issue_date = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        age_days = (datetime.now(issue_date.tzinfo) - issue_date).days
+        return age_days > max_age_days
+    except Exception as e:
+        logger.warning(f"Failed to parse issue date: {e}")
+        return False
+
+
+def _has_trigger_keyword(text: str, keywords: list[str]) -> bool:
+    """Check if text contains any trigger keyword."""
+    text_lower = text.lower()
+    return any(keyword.lower() in text_lower for keyword in keywords)
+
+
 def should_process(issue: dict, filter_config: Optional[FilterConfig] = None) -> bool:
     """
     Determine if an issue should be processed based on filtering rules.
@@ -48,45 +72,31 @@ def should_process(issue: dict, filter_config: Optional[FilterConfig] = None) ->
     title = issue.get("title", "") or ""
     created_at = issue.get("created_at", "")
 
-    # Exclude by label
-    if any(label in filter_config.exclude_labels for label in labels):
+    # Exclusion checks
+    if _is_excluded_by_label(labels, filter_config.exclude_labels):
         logger.debug(f"Issue excluded by label: {labels}")
         return False
 
-    # Exclude bot authors
     if author in filter_config.exclude_authors:
         logger.debug(f"Issue excluded by author: {author}")
         return False
 
-    # Check minimum content
     if len(body) < filter_config.min_body_length:
-        logger.debug(
-            f"Issue body too short: {len(body)} < {filter_config.min_body_length}"
-        )
+        logger.debug(f"Issue body too short: {len(body)} < {filter_config.min_body_length}")
         return False
 
-    # Check age
-    if created_at:
-        try:
-            issue_date = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-            age_days = (datetime.now(issue_date.tzinfo) - issue_date).days
-            if age_days > filter_config.max_age_days:
-                logger.debug(f"Issue too old: {age_days} days")
-                return False
-        except Exception as e:
-            logger.warning(f"Failed to parse issue date: {e}")
+    if _is_too_old(created_at, filter_config.max_age_days):
+        logger.debug("Issue too old")
+        return False
 
-    # Trigger by label
+    # Trigger checks
     if any(label in filter_config.trigger_labels for label in labels):
         logger.debug(f"Issue triggered by label: {labels}")
         return True
 
-    # Trigger by keyword (case-insensitive)
-    combined_text = (title + " " + body).lower()
-    for keyword in filter_config.trigger_keywords:
-        if keyword.lower() in combined_text:
-            logger.debug(f"Issue triggered by keyword: {keyword}")
-            return True
+    if _has_trigger_keyword(title + " " + body, filter_config.trigger_keywords):
+        logger.debug("Issue triggered by keyword")
+        return True
 
     logger.debug("Issue did not match any trigger criteria")
     return False

@@ -411,6 +411,7 @@ def clear_database(db_url: Optional[str] = None):
 
 
 def main():
+    """Entry point for the test data seeding CLI."""
     parser = argparse.ArgumentParser(
         description="Seed test data for AutoResolve development"
     )

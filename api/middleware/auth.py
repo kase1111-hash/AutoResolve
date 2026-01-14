@@ -85,6 +85,7 @@ class RateLimiter:
     """Simple rate limiter using Redis."""
 
     def __init__(self, redis_url: str, requests_per_minute: int = 60):
+        """Initialize rate limiter with Redis connection and limit settings."""
         self.requests_per_minute = requests_per_minute
         self._redis = None
         self._redis_url = redis_url

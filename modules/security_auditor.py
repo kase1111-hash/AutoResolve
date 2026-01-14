@@ -161,6 +161,38 @@ def _bandit_test_to_cwe(test_id: str) -> Optional[str]:
     return mapping.get(test_id)
 
 
+def _extract_first_value(data: dict, key: str) -> Optional[str]:
+    """Extract the first value from a list or string metadata field."""
+    if key not in data:
+        return None
+    value = data[key]
+    if isinstance(value, list) and value:
+        return value[0]
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _parse_semgrep_match(match: dict) -> Finding:
+    """Parse a Semgrep match into a Finding."""
+    metadata = match.get("extra", {}).get("metadata", {})
+    return Finding(
+        finding_id=uuid4(),
+        scanner="semgrep",
+        rule_id=match.get("check_id", ""),
+        cwe=_extract_first_value(metadata, "cwe"),
+        owasp=_extract_first_value(metadata, "owasp"),
+        severity=metadata.get("severity", "medium").lower(),
+        confidence=metadata.get("confidence", "medium").lower(),
+        file=match.get("path", ""),
+        line_start=match.get("start", {}).get("line", 0),
+        line_end=match.get("end", {}).get("line", 0),
+        code_snippet=match.get("extra", {}).get("lines", ""),
+        message=match.get("extra", {}).get("message", ""),
+        recommendation=metadata.get("fix", None),
+    )
+
+
 def run_semgrep(repo_dir: str, affected_files: list[str]) -> list[Finding]:
     """
     Run Semgrep static analysis.
@@ -184,51 +216,13 @@ def run_semgrep(repo_dir: str, affected_files: list[str]) -> list[Finding]:
 
         cmd.extend([str(Path(repo_dir) / f) for f in affected_files])
 
-        result = subprocess.run(cmd, capture_output=True, timeout=180)
+        result = subprocess.run(cmd, capture_output=True, timeout=180, check=False)
 
-        findings = []
+        if not result.stdout:
+            return []
 
-        if result.stdout:
-            data = json.loads(result.stdout)
-
-            for match in data.get("results", []):
-                # Extract CWE from metadata
-                cwe = None
-                owasp = None
-                metadata = match.get("extra", {}).get("metadata", {})
-
-                if "cwe" in metadata:
-                    cwe_list = metadata["cwe"]
-                    if isinstance(cwe_list, list) and cwe_list:
-                        cwe = cwe_list[0]
-                    elif isinstance(cwe_list, str):
-                        cwe = cwe_list
-
-                if "owasp" in metadata:
-                    owasp_list = metadata["owasp"]
-                    if isinstance(owasp_list, list) and owasp_list:
-                        owasp = owasp_list[0]
-                    elif isinstance(owasp_list, str):
-                        owasp = owasp_list
-
-                finding = Finding(
-                    finding_id=uuid4(),
-                    scanner="semgrep",
-                    rule_id=match.get("check_id", ""),
-                    cwe=cwe,
-                    owasp=owasp,
-                    severity=metadata.get("severity", "medium").lower(),
-                    confidence=metadata.get("confidence", "medium").lower(),
-                    file=match.get("path", ""),
-                    line_start=match.get("start", {}).get("line", 0),
-                    line_end=match.get("end", {}).get("line", 0),
-                    code_snippet=match.get("extra", {}).get("lines", ""),
-                    message=match.get("extra", {}).get("message", ""),
-                    recommendation=metadata.get("fix", None),
-                )
-                findings.append(finding)
-
-        return findings
+        data = json.loads(result.stdout)
+        return [_parse_semgrep_match(match) for match in data.get("results", [])]
 
     except subprocess.TimeoutExpired:
         logger.warning("Semgrep scan timed out")

@@ -409,6 +409,80 @@ def _extract_error_signature(stderr: str) -> Optional[str]:
     return None
 
 
+def _collect_affected_files(
+    repo_path: Path, context: IssueContext, stderr: Optional[str]
+) -> list[str]:
+    """Collect affected files from issue context and stack trace."""
+    affected_files = []
+
+    # From parsed issue
+    for file_path in context.affected_files:
+        full_path = repo_path / file_path
+        if full_path.exists() and full_path.is_file():
+            affected_files.append(file_path)
+
+    # From stack trace
+    if stderr:
+        trace_files = _parse_stack_trace_files(stderr)
+        for file_path in trace_files:
+            if file_path not in affected_files:
+                full_path = repo_path / file_path
+                if full_path.exists() and full_path.is_file():
+                    affected_files.append(file_path)
+
+    # Deduplicate and filter to code files
+    affected_files = list(set(affected_files))
+    return [f for f in affected_files if _is_code_file(f)]
+
+
+def _extract_python_functions(
+    file_path: str, full_path: Path, func_names: list[str]
+) -> list[FunctionContext]:
+    """Extract Python function contexts from a file."""
+    functions = []
+    try:
+        with open(full_path, encoding="utf-8") as f:
+            source = f.read()
+        tree = ast.parse(source)
+
+        for func_name in func_names:
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if node.name == func_name:
+                        func_source = _get_source_lines(
+                            full_path, node.lineno, node.end_lineno
+                        )
+                        imports = _extract_imports(tree)
+                        functions.append(
+                            FunctionContext(
+                                file=file_path,
+                                name=func_name,
+                                start_line=node.lineno,
+                                end_line=node.end_lineno or node.lineno,
+                                source=func_source,
+                                imports=imports,
+                            )
+                        )
+    except Exception as e:
+        logger.warning(f"Failed to parse {file_path}: {e}")
+    return functions
+
+
+def _get_repo_commit(repo_dir: str) -> str:
+    """Get the current git commit hash."""
+    try:
+        git_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return git_result.stdout.strip()
+    except Exception:
+        return ""
+
+
 def extract_context(
     repo_dir: str, context: IssueContext, result: ReproductionResult
 ) -> CodeContext:
@@ -425,61 +499,21 @@ def extract_context(
     """
     settings = get_settings()
     repo_path = Path(repo_dir)
+    language = detect_language(repo_dir)
 
-    affected_files = []
-
-    # From parsed issue
-    for file_path in context.affected_files:
-        full_path = repo_path / file_path
-        if full_path.exists() and full_path.is_file():
-            affected_files.append(file_path)
-
-    # From stack trace
-    if result.stderr:
-        trace_files = _parse_stack_trace_files(result.stderr)
-        for file_path in trace_files:
-            if file_path not in affected_files:
-                full_path = repo_path / file_path
-                if full_path.exists() and full_path.is_file():
-                    affected_files.append(file_path)
-
-    # Deduplicate and filter to code files
-    affected_files = list(set(affected_files))
-    affected_files = [f for f in affected_files if _is_code_file(f)]
+    # Collect affected files
+    affected_files = _collect_affected_files(repo_path, context, result.stderr)
 
     # Extract function bodies
     functions = []
-    language = detect_language(repo_dir)
-
-    for file_path in affected_files:
-        full_path = repo_path / file_path
-
-        if language == "python":
-            try:
-                with open(full_path) as f:
-                    source = f.read()
-                tree = ast.parse(source)
-
-                for func_name in context.affected_functions:
-                    for node in ast.walk(tree):
-                        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                            if node.name == func_name:
-                                func_source = _get_source_lines(
-                                    full_path, node.lineno, node.end_lineno
-                                )
-                                imports = _extract_imports(tree)
-                                functions.append(
-                                    FunctionContext(
-                                        file=file_path,
-                                        name=func_name,
-                                        start_line=node.lineno,
-                                        end_line=node.end_lineno or node.lineno,
-                                        source=func_source,
-                                        imports=imports,
-                                    )
-                                )
-            except Exception as e:
-                logger.warning(f"Failed to parse {file_path}: {e}")
+    if language == "python":
+        for file_path in affected_files:
+            full_path = repo_path / file_path
+            functions.extend(
+                _extract_python_functions(
+                    file_path, full_path, context.affected_functions
+                )
+            )
 
     # If no specific functions, extract context around error line
     if not functions and result.error_signature:
@@ -493,22 +527,13 @@ def extract_context(
             if func_context:
                 functions.append(func_context)
 
-    # Get repo commit
-    try:
-        git_result = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=repo_dir, capture_output=True, text=True
-        )
-        repo_commit = git_result.stdout.strip()
-    except Exception:
-        repo_commit = ""
-
     return CodeContext(
         affected_files=affected_files,
         functions=functions,
         error_signature=result.error_signature or "",
         test_command=_get_test_command(repo_dir, language),
         language=language,
-        repo_commit=repo_commit,
+        repo_commit=_get_repo_commit(repo_dir),
     )
 
 
