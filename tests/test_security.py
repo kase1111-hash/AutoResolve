@@ -3,7 +3,6 @@ Tests for the security audit module.
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
 from uuid import uuid4
 
 from modules.security_auditor import (

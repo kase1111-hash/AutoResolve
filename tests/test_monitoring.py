@@ -2,7 +2,6 @@
 Tests for the monitoring module.
 """
 
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 

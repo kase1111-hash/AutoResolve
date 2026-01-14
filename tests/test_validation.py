@@ -2,10 +2,6 @@
 Tests for the validation module.
 """
 
-import pytest
-from pathlib import Path
-from unittest.mock import patch, AsyncMock, MagicMock
-
 from modules.validation import (
     _fallback_parse,
     detect_language,

@@ -234,7 +234,7 @@ def clone_repository(repo_url: str, depth: int = 1, branch: Optional[str] = None
     cmd.extend([repo_url, temp_dir])
 
     try:
-        result = subprocess.run(
+        subprocess.run(
             cmd,
             capture_output=True,
             timeout=settings.validation.clone_timeout_seconds,

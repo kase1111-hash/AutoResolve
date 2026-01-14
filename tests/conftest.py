@@ -2,8 +2,6 @@
 Pytest configuration and fixtures for AutoResolve tests.
 """
 
-import json
-import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -17,10 +15,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.config import Settings, get_settings
+from app.config import Settings
 from app.main import app
-from models.database import Base, Issue, FixProposal, Validation, SecurityReport, Approval
-from models.schemas import QueuedIssue, IssueContext, FixProposal as FixProposalSchema
+from models.database import Base, Issue, FixProposal, Validation
+from models.schemas import QueuedIssue, IssueContext
 
 
 # Test database URL (SQLite in memory)

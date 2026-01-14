@@ -137,14 +137,6 @@ def setup_interactive():
     # Step 5: Generate config
     print_step(5, "Generate Configuration")
 
-    config = {
-        "github": {
-            "app_id": int(app_id),
-            "private_key_path": private_key_path,
-            "webhook_secret": webhook_secret
-        }
-    }
-
     # Create secrets directory
     secrets_dir = Path("secrets")
     secrets_dir.mkdir(exist_ok=True)
