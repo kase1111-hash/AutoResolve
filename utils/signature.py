@@ -11,11 +11,7 @@ import time
 from typing import Optional
 
 
-def verify_github_signature(
-    payload: bytes,
-    signature_header: str,
-    secret: str
-) -> bool:
+def verify_github_signature(payload: bytes, signature_header: str, secret: str) -> bool:
     """
     Verify a GitHub webhook signature.
 
@@ -40,9 +36,7 @@ def verify_github_signature(
             return False
 
         expected_signature = hmac.new(
-            secret.encode(),
-            payload,
-            hashlib.sha256
+            secret.encode(), payload, hashlib.sha256
         ).hexdigest()
 
         return hmac.compare_digest(expected_signature, signature)
@@ -153,10 +147,7 @@ def generate_idempotency_key() -> str:
     return f"{timestamp}-{random_part}"
 
 
-def verify_timestamp(
-    timestamp: int,
-    max_age_seconds: int = 300
-) -> bool:
+def verify_timestamp(timestamp: int, max_age_seconds: int = 300) -> bool:
     """
     Verify that a timestamp is recent enough.
 
@@ -186,8 +177,8 @@ def extract_error_signature(stderr: str) -> Optional[str]:
 
     # Python exception patterns
     patterns = [
-        r'((?:TypeError|ValueError|KeyError|AttributeError|RuntimeError|Exception|ImportError|ModuleNotFoundError):\s*.+?)(?:\n|$)',
-        r'((?:AssertionError|IndexError|ZeroDivisionError|FileNotFoundError|PermissionError):\s*.+?)(?:\n|$)',
+        r"((?:TypeError|ValueError|KeyError|AttributeError|RuntimeError|Exception|ImportError|ModuleNotFoundError):\s*.+?)(?:\n|$)",
+        r"((?:AssertionError|IndexError|ZeroDivisionError|FileNotFoundError|PermissionError):\s*.+?)(?:\n|$)",
     ]
 
     for pattern in patterns:
@@ -196,7 +187,9 @@ def extract_error_signature(stderr: str) -> Optional[str]:
             return match.group(1).strip()
 
     # Generic error pattern
-    error_match = re.search(r'(?:error|exception|failed):\s*(.+?)(?:\n|$)', stderr, re.IGNORECASE)
+    error_match = re.search(
+        r"(?:error|exception|failed):\s*(.+?)(?:\n|$)", stderr, re.IGNORECASE
+    )
     if error_match:
         return error_match.group(1).strip()[:200]
 

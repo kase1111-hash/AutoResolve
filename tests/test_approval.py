@@ -140,13 +140,15 @@ class TestApprovalWorkflow:
     @pytest.mark.asyncio
     async def test_poll_detects_approval(self, mock_github_service):
         """Should detect approval comment."""
-        mock_github_service.get_issue_comments = AsyncMock(return_value=[
-            {
-                "user": {"login": "maintainer"},
-                "body": "@autoresolve approve",
-                "created_at": datetime.utcnow().isoformat()
-            }
-        ])
+        mock_github_service.get_issue_comments = AsyncMock(
+            return_value=[
+                {
+                    "user": {"login": "maintainer"},
+                    "body": "@autoresolve approve",
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            ]
+        )
         mock_github_service.get_issue_reactions = AsyncMock(return_value=[])
 
         from models.schemas import FixProposal
@@ -157,10 +159,12 @@ class TestApprovalWorkflow:
             issue_id=123,
             repo_full_name="test/repo",
             suggested_patch="diff",
-            generated_at=datetime.utcnow() - timedelta(hours=1)
+            generated_at=datetime.utcnow() - timedelta(hours=1),
         )
 
-        with patch("services.github_service.GitHubService", return_value=mock_github_service):
+        with patch(
+            "services.github_service.GitHubService", return_value=mock_github_service
+        ):
             result = await poll_for_approval("test/repo", 123, proposal)
 
         assert result.status == "approved"
@@ -169,13 +173,15 @@ class TestApprovalWorkflow:
     @pytest.mark.asyncio
     async def test_poll_detects_rejection(self, mock_github_service):
         """Should detect rejection comment."""
-        mock_github_service.get_issue_comments = AsyncMock(return_value=[
-            {
-                "user": {"login": "maintainer"},
-                "body": "@autoresolve reject: Not the right fix",
-                "created_at": datetime.utcnow().isoformat()
-            }
-        ])
+        mock_github_service.get_issue_comments = AsyncMock(
+            return_value=[
+                {
+                    "user": {"login": "maintainer"},
+                    "body": "@autoresolve reject: Not the right fix",
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            ]
+        )
         mock_github_service.get_issue_reactions = AsyncMock(return_value=[])
 
         from models.schemas import FixProposal
@@ -186,10 +192,12 @@ class TestApprovalWorkflow:
             issue_id=123,
             repo_full_name="test/repo",
             suggested_patch="diff",
-            generated_at=datetime.utcnow() - timedelta(hours=1)
+            generated_at=datetime.utcnow() - timedelta(hours=1),
         )
 
-        with patch("services.github_service.GitHubService", return_value=mock_github_service):
+        with patch(
+            "services.github_service.GitHubService", return_value=mock_github_service
+        ):
             result = await poll_for_approval("test/repo", 123, proposal)
 
         assert result.status == "rejected"
@@ -199,9 +207,9 @@ class TestApprovalWorkflow:
     async def test_poll_detects_thumbs_up(self, mock_github_service):
         """Should detect thumbs up reaction as approval."""
         mock_github_service.get_issue_comments = AsyncMock(return_value=[])
-        mock_github_service.get_issue_reactions = AsyncMock(return_value=[
-            {"user": {"login": "maintainer"}, "content": "+1"}
-        ])
+        mock_github_service.get_issue_reactions = AsyncMock(
+            return_value=[{"user": {"login": "maintainer"}, "content": "+1"}]
+        )
 
         from models.schemas import FixProposal
         from modules.approval import poll_for_approval
@@ -211,10 +219,12 @@ class TestApprovalWorkflow:
             issue_id=123,
             repo_full_name="test/repo",
             suggested_patch="diff",
-            generated_at=datetime.utcnow() - timedelta(hours=1)
+            generated_at=datetime.utcnow() - timedelta(hours=1),
         )
 
-        with patch("services.github_service.GitHubService", return_value=mock_github_service):
+        with patch(
+            "services.github_service.GitHubService", return_value=mock_github_service
+        ):
             result = await poll_for_approval("test/repo", 123, proposal)
 
         assert result.status == "approved"

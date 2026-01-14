@@ -24,7 +24,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "This is a bug report with enough content to pass the minimum length requirement.",
             "title": "Bug report",
-            "created_at": datetime.utcnow().isoformat() + "Z"
+            "created_at": datetime.utcnow().isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -37,7 +37,7 @@ class TestShouldProcess:
             "user": {"login": "dependabot"},
             "body": "This is a bug report with enough content to pass the minimum length requirement.",
             "title": "Bug report",
-            "created_at": datetime.utcnow().isoformat() + "Z"
+            "created_at": datetime.utcnow().isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -50,7 +50,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "Short",
             "title": "Bug",
-            "created_at": datetime.utcnow().isoformat() + "Z"
+            "created_at": datetime.utcnow().isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -64,7 +64,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "This is a bug report with enough content to pass the minimum length requirement.",
             "title": "Bug report",
-            "created_at": old_date
+            "created_at": old_date,
         }
         config = FilterConfig()
 
@@ -77,7 +77,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "This is a bug report with enough content to pass the minimum length requirement.",
             "title": "Bug report",
-            "created_at": datetime.utcnow().isoformat() + "Z"
+            "created_at": datetime.utcnow().isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -90,7 +90,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "I'm getting a TypeError when running the application. Here's the traceback...",
             "title": "Application crashes",
-            "created_at": datetime.utcnow().isoformat() + "Z"
+            "created_at": datetime.utcnow().isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -103,7 +103,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "It would be nice to have a dark mode feature in the application settings.",
             "title": "Feature request: dark mode",
-            "created_at": datetime.utcnow().isoformat() + "Z"
+            "created_at": datetime.utcnow().isoformat() + "Z",
         }
         config = FilterConfig()
 

@@ -58,10 +58,12 @@ def db_session(db_engine):
 @pytest.fixture
 def client(db_session) -> Generator:
     """Create test client with database session override."""
+
     def override_get_db():
         yield db_session
 
     from app.dependencies import get_db
+
     app.dependency_overrides[get_db] = override_get_db
 
     with TestClient(app) as test_client:
@@ -103,7 +105,7 @@ User should be logged in successfully.
         "user": {"login": "testuser"},
         "created_at": "2026-01-09T10:00:00Z",
         "html_url": "https://github.com/testorg/testrepo/issues/123",
-        "state": "open"
+        "state": "open",
     }
 
 
@@ -116,9 +118,9 @@ def sample_webhook_payload(sample_issue) -> dict:
         "repository": {
             "full_name": "testorg/testrepo",
             "html_url": "https://github.com/testorg/testrepo",
-            "default_branch": "main"
+            "default_branch": "main",
         },
-        "sender": {"login": "testuser"}
+        "sender": {"login": "testuser"},
     }
 
 
@@ -134,7 +136,7 @@ def queued_issue() -> QueuedIssue:
         labels=["bug"],
         author="testuser",
         created_at=datetime.utcnow(),
-        priority=2
+        priority=2,
     )
 
 
@@ -154,7 +156,7 @@ def issue_context() -> IssueContext:
         actual_behavior="TypeError raised",
         environment=EnvironmentInfo(python_version="3.11"),
         code_snippets=[],
-        parse_confidence=0.85
+        parse_confidence=0.85,
     )
 
 
@@ -186,7 +188,7 @@ def db_issue(db_session) -> Issue:
         labels=["bug"],
         author="testuser",
         priority=2,
-        status="pending"
+        status="pending",
     )
     db_session.add(issue)
     db_session.commit()
@@ -202,7 +204,7 @@ def db_validation(db_session, db_issue) -> Validation:
         valid=True,
         validity_status="confirmed",
         match_score=0.92,
-        error_signature="TypeError: 'NoneType' object is not subscriptable"
+        error_signature="TypeError: 'NoneType' object is not subscriptable",
     )
     db_session.add(validation)
     db_session.commit()
@@ -222,7 +224,7 @@ def db_proposal(db_session, db_issue, db_validation, sample_diff) -> FixProposal
         lines_added=1,
         lines_removed=1,
         llm_model="gpt-4",
-        status="pending_approval"
+        status="pending_approval",
     )
     db_session.add(proposal)
     db_session.commit()
@@ -240,17 +242,18 @@ def temp_repo() -> Generator[str, None, None]:
         subprocess.run(["git", "init"], cwd=tmpdir, capture_output=True)
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=tmpdir, capture_output=True
+            cwd=tmpdir,
+            capture_output=True,
         )
         subprocess.run(
-            ["git", "config", "user.name", "Test"],
-            cwd=tmpdir, capture_output=True
+            ["git", "config", "user.name", "Test"], cwd=tmpdir, capture_output=True
         )
 
         # Create sample files
         (Path(tmpdir) / "auth").mkdir()
         (Path(tmpdir) / "auth" / "__init__.py").write_text("")
-        (Path(tmpdir) / "auth" / "login.py").write_text("""
+        (Path(tmpdir) / "auth" / "login.py").write_text(
+            """
 def get_user(username):
     \"\"\"Get user by username.\"\"\"
     if username is None:
@@ -263,14 +266,14 @@ def authenticate(username, password):
     if user:
         return True
     return False
-""")
+"""
+        )
         (Path(tmpdir) / "requirements.txt").write_text("pytest>=7.0\n")
 
         # Commit files
         subprocess.run(["git", "add", "."], cwd=tmpdir, capture_output=True)
         subprocess.run(
-            ["git", "commit", "-m", "Initial commit"],
-            cwd=tmpdir, capture_output=True
+            ["git", "commit", "-m", "Initial commit"], cwd=tmpdir, capture_output=True
         )
 
         yield tmpdir
@@ -287,10 +290,12 @@ def mock_github_service():
         instance.is_maintainer = AsyncMock(return_value=True)
         instance.get_default_branch = AsyncMock(return_value="main")
         instance.create_branch = AsyncMock()
-        instance.create_pull_request = AsyncMock(return_value={
-            "number": 1,
-            "html_url": "https://github.com/test/repo/pull/1"
-        })
+        instance.create_pull_request = AsyncMock(
+            return_value={
+                "number": 1,
+                "html_url": "https://github.com/test/repo/pull/1",
+            }
+        )
         instance.close = AsyncMock()
         yield instance
 
@@ -300,13 +305,15 @@ def mock_llm_service():
     """Mock LLM service for testing."""
     with patch("services.llm_service.LLMService") as mock:
         instance = mock.return_value
-        instance.complete = AsyncMock(return_value="""```diff
+        instance.complete = AsyncMock(
+            return_value="""```diff
 --- a/auth/login.py
 +++ b/auth/login.py
 @@ -10,7 +10,7 @@ def authenticate(username, password):
 -    user = get_user(None)
 +    user = get_user(username)
-```""")
+```"""
+        )
         yield instance
 
 
@@ -315,11 +322,13 @@ def mock_docker_service():
     """Mock Docker service for testing."""
     with patch("services.docker_service.DockerService") as mock:
         instance = mock.return_value
-        instance.run_in_sandbox = MagicMock(return_value={
-            "stdout": "",
-            "stderr": "TypeError: 'NoneType' object is not subscriptable",
-            "exit_code": 1,
-            "duration": 5.0
-        })
+        instance.run_in_sandbox = MagicMock(
+            return_value={
+                "stdout": "",
+                "stderr": "TypeError: 'NoneType' object is not subscriptable",
+                "exit_code": 1,
+                "duration": 5.0,
+            }
+        )
         instance.pull_image = MagicMock(return_value=True)
         yield instance

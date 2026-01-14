@@ -125,7 +125,7 @@ async def post_proposal_comment(
     issue_number: int,
     proposal: FixProposal,
     security_report: SecurityReport,
-    reproduction_valid: bool
+    reproduction_valid: bool,
 ) -> int:
     """
     Post a comment to the GitHub issue with the fix proposal.
@@ -144,7 +144,9 @@ async def post_proposal_comment(
 
     # Format comment
     lines_changed = proposal.lines_added + proposal.lines_removed
-    expiry_date = (datetime.utcnow() + timedelta(days=settings.approval.timeout_days)).strftime("%Y-%m-%d")
+    expiry_date = (
+        datetime.utcnow() + timedelta(days=settings.approval.timeout_days)
+    ).strftime("%Y-%m-%d")
 
     comment_body = APPROVAL_COMMENT_TEMPLATE.format(
         reproduction_status="Confirmed" if reproduction_valid else "Partial",
@@ -155,28 +157,27 @@ async def post_proposal_comment(
         security_summary=format_security_summary(security_report),
         expiry_date=expiry_date,
         days_remaining=settings.approval.timeout_days,
-        version=settings.app.version
+        version=settings.app.version,
     )
 
     # Post comment via GitHub API
     from services.github_service import GitHubService
+
     github = GitHubService()
 
     comment_id = await github.create_issue_comment(
-        repo=repo_full_name,
-        issue_number=issue_number,
-        body=comment_body
+        repo=repo_full_name, issue_number=issue_number, body=comment_body
     )
 
-    logger.info(f"Posted proposal comment to {repo_full_name}#{issue_number}: {comment_id}")
+    logger.info(
+        f"Posted proposal comment to {repo_full_name}#{issue_number}: {comment_id}"
+    )
 
     return comment_id
 
 
 async def poll_for_approval(
-    repo_full_name: str,
-    issue_number: int,
-    proposal: FixProposal
+    repo_full_name: str, issue_number: int, proposal: FixProposal
 ) -> ApprovalResult:
     """
     Check for maintainer approval response.
@@ -192,19 +193,17 @@ async def poll_for_approval(
     settings = get_settings()
 
     from services.github_service import GitHubService
+
     github = GitHubService()
 
     # Get comments since proposal was posted
     comments = await github.get_issue_comments(
-        repo=repo_full_name,
-        issue_number=issue_number,
-        since=proposal.generated_at
+        repo=repo_full_name, issue_number=issue_number, since=proposal.generated_at
     )
 
     # Get reactions on issue
     reactions = await github.get_issue_reactions(
-        repo=repo_full_name,
-        issue_number=issue_number
+        repo=repo_full_name, issue_number=issue_number
     )
 
     # Check for approval commands in comments
@@ -223,7 +222,7 @@ async def poll_for_approval(
                 status="approved",
                 approved_by=author,
                 auto_merge=not no_merge,
-                resolved_at=datetime.utcnow()
+                resolved_at=datetime.utcnow(),
             )
 
         if "@autoresolve reject" in text:
@@ -232,15 +231,12 @@ async def poll_for_approval(
                 status="rejected",
                 rejected_by=author,
                 rejection_reason=reason,
-                resolved_at=datetime.utcnow()
+                resolved_at=datetime.utcnow(),
             )
 
         if "@autoresolve regenerate" in text:
             feedback = _extract_feedback(comment.get("body", ""))
-            return ApprovalResult(
-                status="regenerate",
-                feedback=feedback
-            )
+            return ApprovalResult(status="regenerate", feedback=feedback)
 
     # Check reactions from maintainers
     for reaction in reactions:
@@ -253,17 +249,17 @@ async def poll_for_approval(
                     status="approved",
                     approved_by=user,
                     auto_merge=True,
-                    resolved_at=datetime.utcnow()
+                    resolved_at=datetime.utcnow(),
                 )
             if content == "-1":
                 return ApprovalResult(
-                    status="rejected",
-                    rejected_by=user,
-                    resolved_at=datetime.utcnow()
+                    status="rejected", rejected_by=user, resolved_at=datetime.utcnow()
                 )
 
     # Check expiry
-    if datetime.utcnow() > proposal.generated_at + timedelta(days=settings.approval.timeout_days):
+    if datetime.utcnow() > proposal.generated_at + timedelta(
+        days=settings.approval.timeout_days
+    ):
         return ApprovalResult(status="expired")
 
     return ApprovalResult(status="pending")
@@ -273,7 +269,10 @@ def _extract_reason(text: str) -> Optional[str]:
     """Extract rejection reason from comment."""
     # Look for text after "reject" command
     import re
-    match = re.search(r'@autoresolve\s+reject\s*[:\-]?\s*(.+)', text, re.IGNORECASE | re.DOTALL)
+
+    match = re.search(
+        r"@autoresolve\s+reject\s*[:\-]?\s*(.+)", text, re.IGNORECASE | re.DOTALL
+    )
     if match:
         reason = match.group(1).strip()
         # Stop at common delimiters
@@ -287,7 +286,10 @@ def _extract_reason(text: str) -> Optional[str]:
 def _extract_feedback(text: str) -> Optional[str]:
     """Extract regeneration feedback from comment."""
     import re
-    match = re.search(r'@autoresolve\s+regenerate\s*[:\-]?\s*(.+)', text, re.IGNORECASE | re.DOTALL)
+
+    match = re.search(
+        r"@autoresolve\s+regenerate\s*[:\-]?\s*(.+)", text, re.IGNORECASE | re.DOTALL
+    )
     if match:
         feedback = match.group(1).strip()
         for delim in ["\n\n", "---", "```"]:
@@ -298,9 +300,7 @@ def _extract_feedback(text: str) -> Optional[str]:
 
 
 async def create_pull_request(
-    proposal: FixProposal,
-    approval: ApprovalResult,
-    issue_title: str
+    proposal: FixProposal, approval: ApprovalResult, issue_title: str
 ) -> PullRequestResult:
     """
     Create a PR with the approved patch.
@@ -316,6 +316,7 @@ async def create_pull_request(
     settings = get_settings()
 
     from services.github_service import GitHubService
+
     github = GitHubService()
 
     repo = proposal.repo_full_name
@@ -325,24 +326,24 @@ async def create_pull_request(
     short_id = str(uuid4())[:8]
     branch_name = f"{settings.approval.branch_prefix}{proposal.issue_id}-{short_id}"
 
-    await github.create_branch(
-        repo=repo,
-        branch=branch_name,
-        from_ref=base_branch
-    )
+    await github.create_branch(repo=repo, branch=branch_name, from_ref=base_branch)
 
     # Apply patch via commits
     for file_diff in proposal.parsed_diff.files if proposal.parsed_diff else []:
         try:
-            current_content = await github.get_file_contents(repo, file_diff.path, base_branch)
-            new_content = _apply_diff_to_content(current_content, proposal.suggested_patch, file_diff.path)
+            current_content = await github.get_file_contents(
+                repo, file_diff.path, base_branch
+            )
+            new_content = _apply_diff_to_content(
+                current_content, proposal.suggested_patch, file_diff.path
+            )
 
             await github.update_file(
                 repo=repo,
                 path=file_diff.path,
                 content=new_content,
                 branch=branch_name,
-                message=f"fix: resolve issue #{proposal.issue_id}\n\nAutomated fix by AutoResolve"
+                message=f"fix: resolve issue #{proposal.issue_id}\n\nAutomated fix by AutoResolve",
             )
         except Exception as e:
             logger.error(f"Failed to update file {file_diff.path}: {e}")
@@ -364,7 +365,7 @@ async def create_pull_request(
         low=0,
         approved_by=approval.approved_by or "system",
         approved_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
-        version=settings.app.version
+        version=settings.app.version,
     )
 
     pr = await github.create_pull_request(
@@ -373,7 +374,7 @@ async def create_pull_request(
         body=pr_body,
         head=branch_name,
         base=base_branch,
-        labels=settings.approval.pr_labels
+        labels=settings.approval.pr_labels,
     )
 
     pr_number = pr.get("number", 0)
@@ -383,7 +384,7 @@ async def create_pull_request(
     await github.create_issue_comment(
         repo=repo,
         issue_number=proposal.issue_id,
-        body=f"Pull request created: #{pr_number}"
+        body=f"Pull request created: #{pr_number}",
     )
 
     logger.info(f"Created PR #{pr_number} for issue #{proposal.issue_id}")
@@ -393,26 +394,28 @@ async def create_pull_request(
         try:
             # Wait for checks if configured
             if settings.approval.auto_merge_wait_for_checks:
-                checks_passed = await _wait_for_checks(github, repo, pr_number, timeout=300)
+                checks_passed = await _wait_for_checks(
+                    github, repo, pr_number, timeout=300
+                )
                 if not checks_passed:
                     await github.create_pr_comment(
                         repo=repo,
                         pr_number=pr_number,
-                        body="Auto-merge skipped: CI checks failed"
+                        body="Auto-merge skipped: CI checks failed",
                     )
                     return PullRequestResult(
                         pr_number=pr_number,
                         pr_url=pr_url,
                         branch_name=branch_name,
                         status="open",
-                        checks_passed=False
+                        checks_passed=False,
                     )
 
             # Merge the PR
             await github.merge_pull_request(
                 repo=repo,
                 pr_number=pr_number,
-                merge_method=settings.approval.auto_merge_method
+                merge_method=settings.approval.auto_merge_method,
             )
 
             # Close the issue
@@ -426,22 +429,17 @@ async def create_pull_request(
                 status="merged",
                 checks_passed=True,
                 merged_at=datetime.utcnow(),
-                merged_by="autoresolve"
+                merged_by="autoresolve",
             )
 
         except Exception as e:
             logger.error(f"Auto-merge failed: {e}")
             await github.create_pr_comment(
-                repo=repo,
-                pr_number=pr_number,
-                body=f"Auto-merge failed: {e}"
+                repo=repo, pr_number=pr_number, body=f"Auto-merge failed: {e}"
             )
 
     return PullRequestResult(
-        pr_number=pr_number,
-        pr_url=pr_url,
-        branch_name=branch_name,
-        status="open"
+        pr_number=pr_number, pr_url=pr_url, branch_name=branch_name, status="open"
     )
 
 
@@ -454,7 +452,7 @@ def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write original content
         file_full_path = os.path.join(tmpdir, os.path.basename(file_path))
-        with open(file_full_path, 'w') as f:
+        with open(file_full_path, "w") as f:
             f.write(content)
 
         # Apply patch
@@ -462,7 +460,7 @@ def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
             ["patch", "-p1", "-i", "-"],
             input=diff.encode(),
             cwd=tmpdir,
-            capture_output=True
+            capture_output=True,
         )
 
         if result.returncode != 0:
@@ -471,7 +469,7 @@ def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
                 ["patch", "-p0", "-i", "-"],
                 input=diff.encode(),
                 cwd=tmpdir,
-                capture_output=True
+                capture_output=True,
             )
 
         # Read patched content
@@ -479,7 +477,9 @@ def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
             return f.read()
 
 
-async def _wait_for_checks(github, repo: str, pr_number: int, timeout: int = 300) -> bool:
+async def _wait_for_checks(
+    github, repo: str, pr_number: int, timeout: int = 300
+) -> bool:
     """Wait for CI checks to complete."""
     import asyncio
 
@@ -504,10 +504,7 @@ async def _wait_for_checks(github, repo: str, pr_number: int, timeout: int = 300
     return False
 
 
-async def handle_rejection(
-    proposal: FixProposal,
-    approval: ApprovalResult
-) -> None:
+async def handle_rejection(proposal: FixProposal, approval: ApprovalResult) -> None:
     """
     Handle a rejected proposal.
 
@@ -524,9 +521,11 @@ async def handle_rejection(
 
     try:
         # Update proposal status
-        db_proposal = db.query(DBFixProposal).filter(
-            DBFixProposal.proposal_id == proposal.proposal_id
-        ).first()
+        db_proposal = (
+            db.query(DBFixProposal)
+            .filter(DBFixProposal.proposal_id == proposal.proposal_id)
+            .first()
+        )
 
         if db_proposal:
             db_proposal.status = "rejected"
@@ -540,13 +539,15 @@ async def handle_rejection(
             actor=approval.rejected_by,
             details={
                 "reason": approval.rejection_reason,
-                "proposal_id": str(proposal.proposal_id)
-            }
+                "proposal_id": str(proposal.proposal_id),
+            },
         )
         db.add(log)
         db.commit()
 
-        logger.info(f"Proposal {proposal.proposal_id} rejected by {approval.rejected_by}")
+        logger.info(
+            f"Proposal {proposal.proposal_id} rejected by {approval.rejected_by}"
+        )
 
     finally:
         db.close()
@@ -562,6 +563,7 @@ async def handle_expiry(proposal: FixProposal) -> None:
     settings = get_settings()
 
     from services.github_service import GitHubService
+
     github = GitHubService()
 
     # Post expiry notice
@@ -569,7 +571,7 @@ async def handle_expiry(proposal: FixProposal) -> None:
         repo=proposal.repo_full_name,
         issue_number=proposal.issue_id,
         body=f"The fix proposal has expired after {settings.approval.timeout_days} days without a response. "
-             f"If you would like to receive a new proposal, please reopen this issue or add the 'bug' label."
+        f"If you would like to receive a new proposal, please reopen this issue or add the 'bug' label.",
     )
 
     # Update database
@@ -580,9 +582,11 @@ async def handle_expiry(proposal: FixProposal) -> None:
     db = SessionLocal()
 
     try:
-        db_proposal = db.query(DBFixProposal).filter(
-            DBFixProposal.proposal_id == proposal.proposal_id
-        ).first()
+        db_proposal = (
+            db.query(DBFixProposal)
+            .filter(DBFixProposal.proposal_id == proposal.proposal_id)
+            .first()
+        )
 
         if db_proposal:
             db_proposal.status = "expired"
@@ -599,7 +603,7 @@ async def notify_stakeholders(
     repo_full_name: str,
     issue_id: Optional[int] = None,
     proposal_id: Optional[str] = None,
-    details: Optional[dict] = None
+    details: Optional[dict] = None,
 ) -> None:
     """
     Send notifications for significant events.
@@ -615,18 +619,20 @@ async def notify_stakeholders(
 
     if settings.notifications.slack_enabled:
         from services.notification_service import send_slack_notification
+
         await send_slack_notification(
             event_type=event_type,
             repo=repo_full_name,
             issue_id=issue_id,
-            details=details
+            details=details,
         )
 
     if settings.notifications.email_enabled:
         from services.notification_service import send_email_notification
+
         await send_email_notification(
             event_type=event_type,
             repo=repo_full_name,
             issue_id=issue_id,
-            details=details
+            details=details,
         )

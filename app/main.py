@@ -18,8 +18,7 @@ from models.schemas import HealthResponse
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -78,8 +77,7 @@ def create_app() -> FastAPI:
     async def global_exception_handler(request: Request, exc: Exception):
         logger.error(f"Unhandled exception: {exc}", exc_info=True)
         return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"}
+            status_code=500, content={"detail": "Internal server error"}
         )
 
     return app
@@ -97,6 +95,7 @@ async def health_check():
     db_status = "connected"
     try:
         from models.database import get_engine
+
         engine = get_engine()
         with engine.connect() as conn:
             conn.execute("SELECT 1")
@@ -107,6 +106,7 @@ async def health_check():
     redis_status = "connected"
     try:
         import redis
+
         r = redis.from_url(settings.redis.url)
         r.ping()
     except Exception:
@@ -116,6 +116,7 @@ async def health_check():
     celery_status = "connected"
     try:
         from tasks.celery_app import celery_app
+
         celery_app.control.ping(timeout=1.0)
     except Exception:
         celery_status = "disconnected"
@@ -133,7 +134,7 @@ async def health_check():
         version=settings.app.version,
         database=db_status,
         redis=redis_status,
-        celery=celery_status
+        celery=celery_status,
     )
 
 
@@ -150,24 +151,28 @@ async def get_stats():
     try:
         # Count issues by status
         issues_by_status = dict(
-            db.query(Issue.status, func.count(Issue.id))
-            .group_by(Issue.status)
-            .all()
+            db.query(Issue.status, func.count(Issue.id)).group_by(Issue.status).all()
         )
 
         # Count proposals
         total_proposals = db.query(func.count(FixProposal.id)).scalar()
-        proposals_approved = db.query(func.count(FixProposal.id)).filter(
-            FixProposal.status == "approved"
-        ).scalar()
-        proposals_rejected = db.query(func.count(FixProposal.id)).filter(
-            FixProposal.status == "rejected"
-        ).scalar()
+        proposals_approved = (
+            db.query(func.count(FixProposal.id))
+            .filter(FixProposal.status == "approved")
+            .scalar()
+        )
+        proposals_rejected = (
+            db.query(func.count(FixProposal.id))
+            .filter(FixProposal.status == "rejected")
+            .scalar()
+        )
 
         # Count security findings that blocked proposals
-        security_blocked = db.query(func.count(SecurityReport.id)).filter(
-            SecurityReport.recommendation == "reject"
-        ).scalar()
+        security_blocked = (
+            db.query(func.count(SecurityReport.id))
+            .filter(SecurityReport.recommendation == "reject")
+            .scalar()
+        )
 
         return {
             "total_issues_processed": sum(issues_by_status.values()),
@@ -176,7 +181,7 @@ async def get_stats():
             "proposals_approved": proposals_approved,
             "proposals_rejected": proposals_rejected,
             "average_fix_time_seconds": 0.0,  # TODO: Calculate from timestamps
-            "security_findings_blocked": security_blocked
+            "security_findings_blocked": security_blocked,
         }
     finally:
         db.close()
@@ -190,5 +195,5 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.api.host,
         port=settings.api.port,
-        reload=settings.app.debug
+        reload=settings.app.debug,
     )

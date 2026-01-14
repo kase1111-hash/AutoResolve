@@ -25,6 +25,7 @@ class DockerService:
         if self._client is None:
             try:
                 import docker
+
                 self._client = docker.from_env()
             except ImportError:
                 logger.error("Docker package not installed")
@@ -42,7 +43,7 @@ class DockerService:
         commands: list[str],
         timeout: int = 300,
         memory_limit: str = "512m",
-        network_mode: str = "none"
+        network_mode: str = "none",
     ) -> dict:
         """
         Run commands in a sandboxed Docker container.
@@ -77,7 +78,7 @@ class DockerService:
                 mem_limit=memory_limit,
                 cpu_quota=50000,  # 50% of one CPU
                 detach=True,
-                remove=False
+                remove=False,
             )
 
             # Wait for completion with timeout
@@ -91,8 +92,12 @@ class DockerService:
                 exit_code = -1
 
             # Get logs
-            stdout = container.logs(stdout=True, stderr=False).decode("utf-8", errors="replace")
-            stderr = container.logs(stdout=False, stderr=True).decode("utf-8", errors="replace")
+            stdout = container.logs(stdout=True, stderr=False).decode(
+                "utf-8", errors="replace"
+            )
+            stderr = container.logs(stdout=False, stderr=True).decode(
+                "utf-8", errors="replace"
+            )
 
             duration = time.time() - start_time
 
@@ -106,7 +111,7 @@ class DockerService:
                 "stdout": stdout,
                 "stderr": stderr,
                 "exit_code": exit_code,
-                "duration": duration
+                "duration": duration,
             }
 
         except Exception as e:
@@ -115,7 +120,7 @@ class DockerService:
                 "stdout": "",
                 "stderr": str(e),
                 "exit_code": -1,
-                "duration": time.time() - start_time
+                "duration": time.time() - start_time,
             }
 
     def pull_image(self, image: str) -> bool:
@@ -158,10 +163,7 @@ class DockerService:
         removed = 0
 
         try:
-            containers = client.containers.list(
-                all=True,
-                filters={"label": label}
-            )
+            containers = client.containers.list(all=True, filters={"label": label})
 
             for container in containers:
                 try:
@@ -181,11 +183,6 @@ class DockerService:
 
         try:
             images = client.images.list()
-            return [
-                tag
-                for image in images
-                for tag in image.tags
-                if tag
-            ]
+            return [tag for image in images for tag in image.tags if tag]
         except Exception:
             return []

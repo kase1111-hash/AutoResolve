@@ -30,11 +30,27 @@ class JSONFormatter(logging.Formatter):
         # Add extra fields
         for key, value in record.__dict__.items():
             if key not in (
-                "name", "msg", "args", "created", "filename", "funcName",
-                "levelname", "levelno", "lineno", "module", "msecs",
-                "pathname", "process", "processName", "relativeCreated",
-                "stack_info", "exc_info", "exc_text", "thread", "threadName",
-                "message"
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "stack_info",
+                "exc_info",
+                "exc_text",
+                "thread",
+                "threadName",
+                "message",
             ):
                 try:
                     json.dumps(value)  # Check if serializable
@@ -46,9 +62,7 @@ class JSONFormatter(logging.Formatter):
 
 
 def setup_logging(
-    level: str = "INFO",
-    format_type: str = "json",
-    output: str = "stdout"
+    level: str = "INFO", format_type: str = "json", output: str = "stdout"
 ) -> None:
     """
     Set up logging configuration.
@@ -77,9 +91,9 @@ def setup_logging(
     if format_type == "json":
         handler.setFormatter(JSONFormatter())
     else:
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        ))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
 
     root_logger.addHandler(handler)
 
@@ -156,11 +170,7 @@ class LogContext:
 
 
 def log_issue_event(
-    logger: logging.Logger,
-    event: str,
-    issue_id: int,
-    repo: str,
-    **extra
+    logger: logging.Logger, event: str, issue_id: int, repo: str, **extra
 ) -> None:
     """
     Log an issue-related event.
@@ -174,12 +184,7 @@ def log_issue_event(
     """
     logger.info(
         f"{event}: {repo}#{issue_id}",
-        extra={
-            "event": event,
-            "issue_id": issue_id,
-            "repo": repo,
-            **extra
-        }
+        extra={"event": event, "issue_id": issue_id, "repo": repo, **extra},
     )
 
 
@@ -189,7 +194,7 @@ def log_proposal_event(
     proposal_id: str,
     issue_id: int,
     repo: str,
-    **extra
+    **extra,
 ) -> None:
     """
     Log a proposal-related event.
@@ -209,8 +214,8 @@ def log_proposal_event(
             "proposal_id": proposal_id,
             "issue_id": issue_id,
             "repo": repo,
-            **extra
-        }
+            **extra,
+        },
     )
 
 
@@ -220,7 +225,7 @@ def log_security_event(
     severity: str,
     finding_count: int,
     proposal_id: str,
-    **extra
+    **extra,
 ) -> None:
     """
     Log a security-related event.
@@ -242,8 +247,8 @@ def log_security_event(
             "severity": severity,
             "finding_count": finding_count,
             "proposal_id": proposal_id,
-            **extra
-        }
+            **extra,
+        },
     )
 
 
@@ -253,7 +258,7 @@ def log_api_request(
     path: str,
     status_code: int,
     duration_ms: float,
-    **extra
+    **extra,
 ) -> None:
     """
     Log an API request.
@@ -276,6 +281,6 @@ def log_api_request(
             "path": path,
             "status_code": status_code,
             "duration_ms": duration_ms,
-            **extra
-        }
+            **extra,
+        },
     )

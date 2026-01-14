@@ -29,14 +29,12 @@ def verify_api_key(x_api_key: Optional[str] = Header(None)):
 
 @router.get("/proposals/{proposal_id}", response_model=ProposalResponse)
 async def get_proposal(
-    proposal_id: UUID,
-    db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
+    proposal_id: UUID, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
 ):
     """Get details for a specific fix proposal."""
-    proposal = db.query(FixProposal).filter(
-        FixProposal.proposal_id == proposal_id
-    ).first()
+    proposal = (
+        db.query(FixProposal).filter(FixProposal.proposal_id == proposal_id).first()
+    )
 
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
@@ -49,20 +47,18 @@ async def get_proposal(
         lines_added=proposal.lines_added,
         lines_removed=proposal.lines_removed,
         status=proposal.status,
-        generated_at=proposal.generated_at
+        generated_at=proposal.generated_at,
     )
 
 
 @router.get("/proposals/{proposal_id}/diff")
 async def get_proposal_diff(
-    proposal_id: UUID,
-    db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
+    proposal_id: UUID, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
 ):
     """Get the raw diff for a fix proposal."""
-    proposal = db.query(FixProposal).filter(
-        FixProposal.proposal_id == proposal_id
-    ).first()
+    proposal = (
+        db.query(FixProposal).filter(FixProposal.proposal_id == proposal_id).first()
+    )
 
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
@@ -70,20 +66,18 @@ async def get_proposal_diff(
     return {
         "proposal_id": str(proposal_id),
         "diff": proposal.suggested_patch,
-        "parsed_diff": proposal.parsed_diff
+        "parsed_diff": proposal.parsed_diff,
     }
 
 
 @router.post("/proposals/{proposal_id}/retry")
 async def retry_proposal(
-    proposal_id: UUID,
-    db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
+    proposal_id: UUID, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
 ):
     """Regenerate a fix proposal."""
-    proposal = db.query(FixProposal).filter(
-        FixProposal.proposal_id == proposal_id
-    ).first()
+    proposal = (
+        db.query(FixProposal).filter(FixProposal.proposal_id == proposal_id).first()
+    )
 
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
@@ -91,7 +85,7 @@ async def retry_proposal(
     if proposal.status not in ["rejected", "pending_audit"]:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot retry proposal with status '{proposal.status}'"
+            detail=f"Cannot retry proposal with status '{proposal.status}'",
         )
 
     # TODO: Trigger fix regeneration
@@ -105,21 +99,22 @@ async def retry_proposal(
 
 @router.get("/reports/{proposal_id}")
 async def get_security_report(
-    proposal_id: UUID,
-    db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
+    proposal_id: UUID, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
 ):
     """Get the security report for a fix proposal."""
-    proposal = db.query(FixProposal).filter(
-        FixProposal.proposal_id == proposal_id
-    ).first()
+    proposal = (
+        db.query(FixProposal).filter(FixProposal.proposal_id == proposal_id).first()
+    )
 
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
-    report = db.query(SecurityReport).filter(
-        SecurityReport.proposal_id == proposal.id
-    ).order_by(SecurityReport.scanned_at.desc()).first()
+    report = (
+        db.query(SecurityReport)
+        .filter(SecurityReport.proposal_id == proposal.id)
+        .order_by(SecurityReport.scanned_at.desc())
+        .first()
+    )
 
     if not report:
         raise HTTPException(status_code=404, detail="Security report not found")
@@ -136,5 +131,5 @@ async def get_security_report(
         "dynamic_scan_passed": report.dynamic_scan_passed,
         "recommendation": report.recommendation,
         "scanned_at": report.scanned_at.isoformat(),
-        "scan_duration": report.scan_duration
+        "scan_duration": report.scan_duration,
     }

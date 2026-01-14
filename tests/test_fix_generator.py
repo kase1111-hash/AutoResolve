@@ -33,7 +33,7 @@ This should fix the issue.
 
         assert diff is not None
         assert "--- a/test.py" in diff
-        assert "+    return \"fixed\"" in diff
+        assert '+    return "fixed"' in diff
 
     def test_extracts_from_plain_block(self):
         """Should extract diff from plain code block."""

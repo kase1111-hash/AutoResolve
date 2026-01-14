@@ -33,6 +33,7 @@ from app.config import get_settings
 
 class Base(DeclarativeBase):
     """Base class for all models."""
+
     pass
 
 
@@ -249,7 +250,9 @@ class MonitoredRepo(Base):
     __tablename__ = "monitored_repos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    repo_full_name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    repo_full_name: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False
+    )
     webhook_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     webhook_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
