@@ -6,7 +6,6 @@ Handles sandbox container execution for issue reproduction.
 
 import logging
 import time
-from typing import Optional
 
 from app.config import get_settings
 

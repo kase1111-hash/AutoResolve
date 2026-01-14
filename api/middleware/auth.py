@@ -11,7 +11,7 @@ from fastapi import HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 
 from app.config import get_settings
-from utils.signature import verify_api_key, hash_api_key
+from utils.signature import hash_api_key
 
 logger = logging.getLogger(__name__)
 

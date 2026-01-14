@@ -2,9 +2,6 @@
 Tests for the fix generation module.
 """
 
-import pytest
-from unittest.mock import patch, AsyncMock
-
 from modules.fix_generator import (
     extract_diff,
     validate_diff_syntax,

@@ -8,7 +8,6 @@ import json
 import logging
 import sys
 from datetime import datetime
-from typing import Any, Optional
 
 import structlog
 
@@ -152,7 +151,7 @@ class LogContext:
         logging.setLogRecordFactory(record_factory)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
         logging.setLogRecordFactory(self.old_factory)
 
 
