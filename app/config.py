@@ -71,10 +71,21 @@ class FilterConfig(BaseSettings):
 
     trigger_labels: list[str] = ["bug", "error", "defect", "crash", "regression"]
     trigger_keywords: list[str] = [
-        "TypeError", "ValueError", "AttributeError", "KeyError",
-        "NullPointerException", "IndexOutOfBounds", "SegmentationFault",
-        "traceback", "stack trace", "exception", "fails", "broken",
-        "doesn't work", "error when", "crash when"
+        "TypeError",
+        "ValueError",
+        "AttributeError",
+        "KeyError",
+        "NullPointerException",
+        "IndexOutOfBounds",
+        "SegmentationFault",
+        "traceback",
+        "stack trace",
+        "exception",
+        "fails",
+        "broken",
+        "doesn't work",
+        "error when",
+        "crash when",
     ]
     exclude_labels: list[str] = ["wontfix", "duplicate", "invalid", "question"]
     exclude_authors: list[str] = ["dependabot", "renovate", "github-actions"]
@@ -91,11 +102,7 @@ class MonitoringConfig(BaseSettings):
     poll_interval_minutes: int = 5
     poll_lookback_minutes: int = 10
     max_queue_size: int = 1000
-    priority_labels: dict[str, int] = {
-        "critical": 1,
-        "high-priority": 2,
-        "bug": 3
-    }
+    priority_labels: dict[str, int] = {"critical": 1, "high-priority": 2, "bug": 3}
     rate_limit_buffer: int = 100
 
 
@@ -188,7 +195,9 @@ class DatabaseConfig(BaseSettings):
 
     model_config = {"extra": "ignore"}
 
-    url: str = Field(default="postgresql://autoresolve:password@localhost:5432/autoresolve")
+    url: str = Field(
+        default="postgresql://autoresolve:password@localhost:5432/autoresolve"
+    )
     pool_size: int = 10
 
 
@@ -276,21 +285,40 @@ class Settings(BaseSettings):
     def _merge_yaml_config(cls, settings: "Settings", yaml_config: dict) -> "Settings":
         """Merge YAML configuration into settings."""
         if "app" in yaml_config:
-            settings.app = AppSettings(**{**settings.app.model_dump(), **yaml_config["app"]})
+            settings.app = AppSettings(
+                **{**settings.app.model_dump(), **yaml_config["app"]}
+            )
         if "github" in yaml_config:
-            settings.github = GitHubSettings(**{**settings.github.model_dump(), **yaml_config["github"]})
+            settings.github = GitHubSettings(
+                **{**settings.github.model_dump(), **yaml_config["github"]}
+            )
         if "filtering" in yaml_config:
-            settings.filtering = FilterConfig(**{**settings.filtering.model_dump(), **yaml_config["filtering"]})
+            settings.filtering = FilterConfig(
+                **{**settings.filtering.model_dump(), **yaml_config["filtering"]}
+            )
         if "monitoring" in yaml_config:
-            settings.monitoring = MonitoringConfig(**{**settings.monitoring.model_dump(), **yaml_config["monitoring"]})
+            settings.monitoring = MonitoringConfig(
+                **{**settings.monitoring.model_dump(), **yaml_config["monitoring"]}
+            )
         if "validation" in yaml_config:
-            settings.validation = ValidationConfig(**{**settings.validation.model_dump(), **yaml_config["validation"]})
+            settings.validation = ValidationConfig(
+                **{**settings.validation.model_dump(), **yaml_config["validation"]}
+            )
         if "fix_generation" in yaml_config:
-            settings.fix_generation = FixGenerationConfig(**{**settings.fix_generation.model_dump(), **yaml_config["fix_generation"]})
+            settings.fix_generation = FixGenerationConfig(
+                **{
+                    **settings.fix_generation.model_dump(),
+                    **yaml_config["fix_generation"],
+                }
+            )
         if "security" in yaml_config:
-            settings.security = SecurityAuditConfig(**{**settings.security.model_dump(), **yaml_config["security"]})
+            settings.security = SecurityAuditConfig(
+                **{**settings.security.model_dump(), **yaml_config["security"]}
+            )
         if "approval" in yaml_config:
-            settings.approval = ApprovalConfig(**{**settings.approval.model_dump(), **yaml_config["approval"]})
+            settings.approval = ApprovalConfig(
+                **{**settings.approval.model_dump(), **yaml_config["approval"]}
+            )
         if "notifications" in yaml_config:
             notif_config = yaml_config["notifications"]
             # Handle nested slack/email structure from YAML
@@ -311,19 +339,36 @@ class Settings(BaseSettings):
                     flat_notif["smtp_host"] = email["smtp_host"]
                 if "smtp_port" in email:
                     flat_notif["smtp_port"] = email["smtp_port"]
-            settings.notifications = NotificationConfig(**{**settings.notifications.model_dump(), **flat_notif})
+            settings.notifications = NotificationConfig(
+                **{**settings.notifications.model_dump(), **flat_notif}
+            )
         if "database" in yaml_config:
-            settings.database = DatabaseConfig(**{**settings.database.model_dump(), **yaml_config["database"]})
+            settings.database = DatabaseConfig(
+                **{**settings.database.model_dump(), **yaml_config["database"]}
+            )
         if "redis" in yaml_config:
-            settings.redis = RedisConfig(**{**settings.redis.model_dump(), **yaml_config["redis"]})
+            settings.redis = RedisConfig(
+                **{**settings.redis.model_dump(), **yaml_config["redis"]}
+            )
         if "celery" in yaml_config:
-            settings.celery = CeleryConfig(**{**settings.celery.model_dump(), **yaml_config["celery"]})
+            settings.celery = CeleryConfig(
+                **{**settings.celery.model_dump(), **yaml_config["celery"]}
+            )
         if "api" in yaml_config:
-            settings.api = APIConfig(**{**settings.api.model_dump(), **yaml_config["api"]})
+            settings.api = APIConfig(
+                **{**settings.api.model_dump(), **yaml_config["api"]}
+            )
         if "logging" in yaml_config:
-            settings.logging = LoggingConfig(**{**settings.logging.model_dump(), **yaml_config["logging"]})
+            settings.logging = LoggingConfig(
+                **{**settings.logging.model_dump(), **yaml_config["logging"]}
+            )
         if "observability" in yaml_config:
-            settings.observability = ObservabilityConfig(**{**settings.observability.model_dump(), **yaml_config["observability"]})
+            settings.observability = ObservabilityConfig(
+                **{
+                    **settings.observability.model_dump(),
+                    **yaml_config["observability"],
+                }
+            )
         if "monitored_repos" in yaml_config:
             settings.monitored_repos = yaml_config["monitored_repos"]
 

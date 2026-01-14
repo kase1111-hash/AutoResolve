@@ -20,7 +20,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 async def verify_api_key_header(
-    api_key: Optional[str] = Security(api_key_header)
+    api_key: Optional[str] = Security(api_key_header),
 ) -> bool:
     """
     Verify API key from request header.
@@ -45,7 +45,7 @@ async def verify_api_key_header(
         raise HTTPException(
             status_code=401,
             detail="Missing API key",
-            headers={"WWW-Authenticate": "ApiKey"}
+            headers={"WWW-Authenticate": "ApiKey"},
         )
 
     if api_key != settings.api.api_key:
@@ -53,7 +53,7 @@ async def verify_api_key_header(
         raise HTTPException(
             status_code=401,
             detail="Invalid API key",
-            headers={"WWW-Authenticate": "ApiKey"}
+            headers={"WWW-Authenticate": "ApiKey"},
         )
 
     return True
@@ -92,6 +92,7 @@ class RateLimiter:
     def _get_redis(self):
         if self._redis is None:
             import redis
+
             self._redis = redis.from_url(self._redis_url)
         return self._redis
 
@@ -141,16 +142,11 @@ async def rate_limit_middleware(request: Request, call_next):
         identifier = request.client.host if request.client else "unknown"
 
     # Check rate limit
-    limiter = RateLimiter(
-        redis_url=settings.redis.url,
-        requests_per_minute=60
-    )
+    limiter = RateLimiter(redis_url=settings.redis.url, requests_per_minute=60)
 
     if not await limiter.check_rate_limit(identifier):
         raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded",
-            headers={"Retry-After": "60"}
+            status_code=429, detail="Rate limit exceeded", headers={"Retry-After": "60"}
         )
 
     return await call_next(request)
@@ -166,26 +162,24 @@ def require_maintainer(repo: str):
     Returns:
         Dependency function
     """
+
     async def check_maintainer(request: Request):
         # Get user from GitHub token or API key
         user = await get_current_user(request)
 
         if not user:
-            raise HTTPException(
-                status_code=401,
-                detail="Authentication required"
-            )
+            raise HTTPException(status_code=401, detail="Authentication required")
 
         # Check if user is maintainer
         from services.github_service import GitHubService
+
         github = GitHubService()
 
         try:
             is_maintainer = await github.is_maintainer(repo, user)
             if not is_maintainer:
                 raise HTTPException(
-                    status_code=403,
-                    detail="Maintainer access required"
+                    status_code=403, detail="Maintainer access required"
                 )
         finally:
             await github.close()

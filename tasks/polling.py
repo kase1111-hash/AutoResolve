@@ -12,7 +12,9 @@ from celery import shared_task
 from app.config import get_settings
 from models.database import (
     Approval,
-    FixProposal as DBFixProposal,
+)
+from models.database import FixProposal as DBFixProposal
+from models.database import (
     Issue,
     MonitoredRepo,
     get_session_factory,
@@ -34,7 +36,9 @@ def poll_approval(proposal_id: int):
     db = SessionLocal()
 
     try:
-        proposal = db.query(DBFixProposal).filter(DBFixProposal.id == proposal_id).first()
+        proposal = (
+            db.query(DBFixProposal).filter(DBFixProposal.id == proposal_id).first()
+        )
         if not proposal:
             logger.error(f"Proposal {proposal_id} not found")
             return
@@ -46,7 +50,7 @@ def poll_approval(proposal_id: int):
         issue = proposal.issue
 
         from models.schemas import FixProposal
-        from modules.approval import poll_for_approval, handle_rejection, handle_expiry
+        from modules.approval import handle_expiry, handle_rejection, poll_for_approval
 
         # Create schema object
         fix_proposal = FixProposal(
@@ -55,7 +59,7 @@ def poll_approval(proposal_id: int):
             repo_full_name=issue.repo_full_name,
             suggested_patch=proposal.suggested_patch,
             affected_files=proposal.affected_files,
-            generated_at=proposal.generated_at
+            generated_at=proposal.generated_at,
         )
 
         import asyncio
@@ -68,7 +72,7 @@ def poll_approval(proposal_id: int):
                 poll_for_approval(
                     repo_full_name=issue.repo_full_name,
                     issue_number=issue.github_issue_id,
-                    proposal=fix_proposal
+                    proposal=fix_proposal,
                 )
             )
         finally:
@@ -79,6 +83,7 @@ def poll_approval(proposal_id: int):
 
             # Trigger PR creation
             from tasks.processing import create_pr
+
             create_pr.delay(proposal_id, result.approved_by, result.auto_merge)
 
         elif result.status == "rejected":
@@ -92,9 +97,9 @@ def poll_approval(proposal_id: int):
                 loop.close()
 
             # Update database
-            db_approval = db.query(Approval).filter(
-                Approval.proposal_id == proposal_id
-            ).first()
+            db_approval = (
+                db.query(Approval).filter(Approval.proposal_id == proposal_id).first()
+            )
             if db_approval:
                 db_approval.status = "rejected"
                 db_approval.rejected_by = result.rejected_by
@@ -116,9 +121,9 @@ def poll_approval(proposal_id: int):
                 loop.close()
 
             # Update database
-            db_approval = db.query(Approval).filter(
-                Approval.proposal_id == proposal_id
-            ).first()
+            db_approval = (
+                db.query(Approval).filter(Approval.proposal_id == proposal_id).first()
+            )
             if db_approval:
                 db_approval.status = "expired"
                 db_approval.resolved_at = datetime.utcnow()
@@ -141,11 +146,13 @@ def poll_approval(proposal_id: int):
             # Still pending - schedule next check
             poll_approval.apply_async(
                 args=[proposal_id],
-                countdown=settings.approval.poll_interval_minutes * 60
+                countdown=settings.approval.poll_interval_minutes * 60,
             )
 
     except Exception as e:
-        logger.error(f"Error polling approval for proposal {proposal_id}: {e}", exc_info=True)
+        logger.error(
+            f"Error polling approval for proposal {proposal_id}: {e}", exc_info=True
+        )
         # Re-schedule on error
         poll_approval.apply_async(args=[proposal_id], countdown=300)
 
@@ -180,8 +187,7 @@ def poll_repositories():
         from modules.monitoring import poll_repositories
 
         queued = poll_repositories(
-            repos=repo_names,
-            since_minutes=settings.monitoring.poll_lookback_minutes
+            repos=repo_names, since_minutes=settings.monitoring.poll_lookback_minutes
         )
 
         # Update last_polled_at
@@ -197,9 +203,9 @@ def poll_repositories():
                 from tasks.processing import process_issue
 
                 # Find the database ID
-                db_issue = db.query(Issue).filter(
-                    Issue.queue_id == issue.queue_id
-                ).first()
+                db_issue = (
+                    db.query(Issue).filter(Issue.queue_id == issue.queue_id).first()
+                )
 
                 if db_issue:
                     process_issue.delay(db_issue.id)
@@ -228,10 +234,14 @@ def cleanup_expired_proposals():
         cutoff = datetime.utcnow() - timedelta(days=settings.approval.timeout_days)
 
         # Find proposals that are still pending past the cutoff
-        pending_proposals = db.query(DBFixProposal).filter(
-            DBFixProposal.status == "pending_approval",
-            DBFixProposal.generated_at < cutoff
-        ).all()
+        pending_proposals = (
+            db.query(DBFixProposal)
+            .filter(
+                DBFixProposal.status == "pending_approval",
+                DBFixProposal.generated_at < cutoff,
+            )
+            .all()
+        )
 
         for proposal in pending_proposals:
             logger.info(f"Expiring proposal {proposal.proposal_id}")
@@ -239,10 +249,13 @@ def cleanup_expired_proposals():
             proposal.status = "expired"
 
             # Update associated approval
-            approval = db.query(Approval).filter(
-                Approval.proposal_id == proposal.id,
-                Approval.status == "pending"
-            ).first()
+            approval = (
+                db.query(Approval)
+                .filter(
+                    Approval.proposal_id == proposal.id, Approval.status == "pending"
+                )
+                .first()
+            )
 
             if approval:
                 approval.status = "expired"

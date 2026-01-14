@@ -36,22 +36,12 @@ SANDBOX_IMAGES = {
         "3.9": "python:3.9-slim",
         "3.10": "python:3.10-slim",
         "3.11": "python:3.11-slim",
-        "3.12": "python:3.12-slim"
+        "3.12": "python:3.12-slim",
     },
-    "node": {
-        "default": "node:20-slim",
-        "18": "node:18-slim",
-        "20": "node:20-slim"
-    },
-    "go": {
-        "default": "golang:1.21-alpine"
-    },
-    "rust": {
-        "default": "rust:1.75-slim"
-    },
-    "java": {
-        "default": "eclipse-temurin:21-jdk"
-    }
+    "node": {"default": "node:20-slim", "18": "node:18-slim", "20": "node:20-slim"},
+    "go": {"default": "golang:1.21-alpine"},
+    "rust": {"default": "rust:1.75-slim"},
+    "java": {"default": "eclipse-temurin:21-jdk"},
 }
 
 # Default test commands per language
@@ -59,21 +49,12 @@ DEFAULT_TEST_COMMANDS = {
     "python": [
         "pip install -r requirements.txt 2>/dev/null || true",
         "pip install pytest 2>/dev/null || true",
-        "pytest -v --tb=short 2>&1 || python -m unittest discover 2>&1"
+        "pytest -v --tb=short 2>&1 || python -m unittest discover 2>&1",
     ],
-    "node": [
-        "npm install 2>/dev/null || true",
-        "npm test 2>&1"
-    ],
-    "go": [
-        "go test ./... 2>&1"
-    ],
-    "rust": [
-        "cargo test 2>&1"
-    ],
-    "java": [
-        "mvn test 2>&1 || gradle test 2>&1"
-    ]
+    "node": ["npm install 2>/dev/null || true", "npm test 2>&1"],
+    "go": ["go test ./... 2>&1"],
+    "rust": ["cargo test 2>&1"],
+    "java": ["mvn test 2>&1 || gradle test 2>&1"],
 }
 
 
@@ -88,6 +69,7 @@ async def parse_issue(title: str, body: str) -> IssueContext:
     # Try LLM parsing first
     try:
         from services.llm_service import LLMService
+
         llm = LLMService()
 
         prompt = f"""You are a bug report parser. Extract structured information from this GitHub issue.
@@ -121,10 +103,11 @@ If information is not present, use null. Be conservative with confidence."""
             prompt=prompt,
             model=settings.validation.llm_parse_model,
             temperature=settings.validation.llm_parse_temperature,
-            max_tokens=2000
+            max_tokens=2000,
         )
 
         import json
+
         parsed = json.loads(response)
 
         return IssueContext(
@@ -138,7 +121,7 @@ If information is not present, use null. Be conservative with confidence."""
             actual_behavior=parsed.get("actual_behavior"),
             environment=EnvironmentInfo(**parsed.get("environment", {})),
             code_snippets=parsed.get("code_snippets", []),
-            parse_confidence=parsed.get("confidence", 0.5)
+            parse_confidence=parsed.get("confidence", 0.5),
         )
 
     except Exception as e:
@@ -154,7 +137,7 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
     error_patterns = [
         r"(TypeError|ValueError|AttributeError|KeyError|IndexError|RuntimeError|Exception)",
         r"(NullPointerException|IndexOutOfBoundsException|IllegalArgumentException)",
-        r"(SegmentationFault|SIGSEGV)"
+        r"(SegmentationFault|SIGSEGV)",
     ]
 
     error_type = None
@@ -167,8 +150,8 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
     # Extract file paths
     file_patterns = [
         r'(?:File\s+["\']?)([^"\':\s]+\.py)',
-        r'(?:in\s+)([a-zA-Z0-9_/]+\.(?:py|js|ts|go|rs|java))',
-        r'([a-zA-Z0-9_/]+\.(?:py|js|ts|go|rs|java))(?:\s*:?\s*\d+)?'
+        r"(?:in\s+)([a-zA-Z0-9_/]+\.(?:py|js|ts|go|rs|java))",
+        r"([a-zA-Z0-9_/]+\.(?:py|js|ts|go|rs|java))(?:\s*:?\s*\d+)?",
     ]
 
     affected_files = []
@@ -179,8 +162,8 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
 
     # Extract function names
     func_patterns = [
-        r'(?:in\s+|function\s+|def\s+|fn\s+)([a-zA-Z_][a-zA-Z0-9_]*)',
-        r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)\s*$'
+        r"(?:in\s+|function\s+|def\s+|fn\s+)([a-zA-Z_][a-zA-Z0-9_]*)",
+        r"([a-zA-Z_][a-zA-Z0-9_]*)\s*\([^)]*\)\s*$",
     ]
 
     affected_functions = []
@@ -190,11 +173,13 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
     affected_functions = list(set(affected_functions))[:5]
 
     # Extract code snippets (markdown code blocks)
-    code_blocks = re.findall(r'```(?:\w+)?\n(.*?)```', combined, re.DOTALL)
+    code_blocks = re.findall(r"```(?:\w+)?\n(.*?)```", combined, re.DOTALL)
 
     # Extract stack trace
     stack_trace = None
-    trace_match = re.search(r'(Traceback \(most recent call last\):.*?)(?:\n\n|$)', combined, re.DOTALL)
+    trace_match = re.search(
+        r"(Traceback \(most recent call last\):.*?)(?:\n\n|$)", combined, re.DOTALL
+    )
     if trace_match:
         stack_trace = trace_match.group(1)
 
@@ -209,11 +194,13 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
         actual_behavior=None,
         environment=EnvironmentInfo(),
         code_snippets=code_blocks,
-        parse_confidence=0.3
+        parse_confidence=0.3,
     )
 
 
-def clone_repository(repo_url: str, depth: int = 1, branch: Optional[str] = None) -> str:
+def clone_repository(
+    repo_url: str, depth: int = 1, branch: Optional[str] = None
+) -> str:
     """
     Clone a repository to a temporary directory.
 
@@ -238,7 +225,7 @@ def clone_repository(repo_url: str, depth: int = 1, branch: Optional[str] = None
             cmd,
             capture_output=True,
             timeout=settings.validation.clone_timeout_seconds,
-            check=True
+            check=True,
         )
         logger.info(f"Cloned repository to {temp_dir}")
         return temp_dir
@@ -260,7 +247,7 @@ def detect_language(repo_dir: str) -> str:
         "node": ["package.json", "yarn.lock", "package-lock.json"],
         "go": ["go.mod", "go.sum"],
         "rust": ["Cargo.toml", "Cargo.lock"],
-        "java": ["pom.xml", "build.gradle", "build.gradle.kts"]
+        "java": ["pom.xml", "build.gradle", "build.gradle.kts"],
     }
 
     for lang, files in indicators.items():
@@ -275,7 +262,7 @@ def detect_language(repo_dir: str) -> str:
         ".ts": "node",
         ".go": "go",
         ".rs": "rust",
-        ".java": "java"
+        ".java": "java",
     }
 
     ext_counts = {}
@@ -299,9 +286,7 @@ def get_sandbox_image(language: str, version: Optional[str] = None) -> str:
 
 
 def reproduce_issue(
-    issue: QueuedIssue,
-    context: IssueContext,
-    repo_dir: str
+    issue: QueuedIssue, context: IssueContext, repo_dir: str
 ) -> ReproductionResult:
     """
     Attempt to reproduce an issue in a sandbox environment.
@@ -327,6 +312,7 @@ def reproduce_issue(
     # Execute in Docker sandbox
     try:
         from services.docker_service import DockerService
+
         docker = DockerService()
 
         result = docker.run_in_sandbox(
@@ -335,12 +321,12 @@ def reproduce_issue(
             commands=commands,
             timeout=settings.validation.sandbox_timeout_seconds,
             memory_limit=settings.validation.sandbox_memory_limit,
-            network_mode=settings.validation.sandbox_network
+            network_mode=settings.validation.sandbox_network,
         )
 
         # Analyze result
-        stderr = result.get("stderr", "")[-settings.validation.max_stderr_size:]
-        stdout = result.get("stdout", "")[-settings.validation.max_stdout_size:]
+        stderr = result.get("stderr", "")[-settings.validation.max_stderr_size :]
+        stdout = result.get("stdout", "")[-settings.validation.max_stdout_size :]
         exit_code = result.get("exit_code", 1)
 
         # Check if error matches expected
@@ -365,7 +351,7 @@ def reproduce_issue(
             exit_code=exit_code,
             error_signature=error_signature,
             execution_time=result.get("duration", 0.0),
-            sandbox_image=sandbox_image
+            sandbox_image=sandbox_image,
         )
 
     except Exception as e:
@@ -376,7 +362,7 @@ def reproduce_issue(
             match_score=0.0,
             stderr=str(e),
             exit_code=-1,
-            sandbox_image=sandbox_image
+            sandbox_image=sandbox_image,
         )
 
 
@@ -407,14 +393,16 @@ def _extract_error_signature(stderr: str) -> Optional[str]:
     """Extract a unique error signature from stderr."""
     # Look for Python tracebacks
     tb_match = re.search(
-        r'((?:TypeError|ValueError|KeyError|AttributeError|RuntimeError|Exception):\s*.+?)(?:\n|$)',
-        stderr
+        r"((?:TypeError|ValueError|KeyError|AttributeError|RuntimeError|Exception):\s*.+?)(?:\n|$)",
+        stderr,
     )
     if tb_match:
         return tb_match.group(1).strip()
 
     # Look for other error patterns
-    error_match = re.search(r'(?:error|exception|failed):\s*(.+?)(?:\n|$)', stderr, re.IGNORECASE)
+    error_match = re.search(
+        r"(?:error|exception|failed):\s*(.+?)(?:\n|$)", stderr, re.IGNORECASE
+    )
     if error_match:
         return error_match.group(1).strip()
 
@@ -422,9 +410,7 @@ def _extract_error_signature(stderr: str) -> Optional[str]:
 
 
 def extract_context(
-    repo_dir: str,
-    context: IssueContext,
-    result: ReproductionResult
+    repo_dir: str, context: IssueContext, result: ReproductionResult
 ) -> CodeContext:
     """
     Extract code context needed for fix generation.
@@ -482,14 +468,16 @@ def extract_context(
                                     full_path, node.lineno, node.end_lineno
                                 )
                                 imports = _extract_imports(tree)
-                                functions.append(FunctionContext(
-                                    file=file_path,
-                                    name=func_name,
-                                    start_line=node.lineno,
-                                    end_line=node.end_lineno or node.lineno,
-                                    source=func_source,
-                                    imports=imports
-                                ))
+                                functions.append(
+                                    FunctionContext(
+                                        file=file_path,
+                                        name=func_name,
+                                        start_line=node.lineno,
+                                        end_line=node.end_lineno or node.lineno,
+                                        source=func_source,
+                                        imports=imports,
+                                    )
+                                )
             except Exception as e:
                 logger.warning(f"Failed to parse {file_path}: {e}")
 
@@ -500,7 +488,7 @@ def extract_context(
             func_context = _extract_context_around_line(
                 repo_path / affected_files[0],
                 line_number,
-                settings.validation.context_lines_around_error
+                settings.validation.context_lines_around_error,
             )
             if func_context:
                 functions.append(func_context)
@@ -508,10 +496,7 @@ def extract_context(
     # Get repo commit
     try:
         git_result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True
+            ["git", "rev-parse", "HEAD"], cwd=repo_dir, capture_output=True, text=True
         )
         repo_commit = git_result.stdout.strip()
     except Exception:
@@ -523,7 +508,7 @@ def extract_context(
         error_signature=result.error_signature or "",
         test_command=_get_test_command(repo_dir, language),
         language=language,
-        repo_commit=repo_commit
+        repo_commit=repo_commit,
     )
 
 
@@ -556,7 +541,7 @@ def _get_source_lines(file_path: Path, start: int, end: Optional[int]) -> str:
         with open(file_path) as f:
             lines = f.readlines()
         end = end or start
-        return "".join(lines[start - 1:end])
+        return "".join(lines[start - 1 : end])
     except Exception:
         return ""
 
@@ -578,16 +563,14 @@ def _extract_imports(tree: ast.AST) -> list[str]:
 def _extract_line_from_trace(stderr: str) -> Optional[int]:
     """Extract the error line number from a stack trace."""
     # Python format: File "...", line X
-    match = re.search(r'line (\d+)', stderr)
+    match = re.search(r"line (\d+)", stderr)
     if match:
         return int(match.group(1))
     return None
 
 
 def _extract_context_around_line(
-    file_path: Path,
-    line: int,
-    context_lines: int
+    file_path: Path, line: int, context_lines: int
 ) -> Optional[FunctionContext]:
     """Extract code context around a specific line."""
     try:
@@ -596,7 +579,7 @@ def _extract_context_around_line(
 
         start = max(1, line - context_lines)
         end = min(len(lines), line + context_lines)
-        source = "".join(lines[start - 1:end])
+        source = "".join(lines[start - 1 : end])
 
         return FunctionContext(
             file=str(file_path.name),
@@ -604,7 +587,7 @@ def _extract_context_around_line(
             start_line=start,
             end_line=end,
             source=source,
-            imports=[]
+            imports=[],
         )
     except Exception:
         return None
@@ -615,7 +598,9 @@ def _get_test_command(repo_dir: str, language: str) -> str:
     repo_path = Path(repo_dir)
 
     if language == "python":
-        if (repo_path / "pytest.ini").exists() or (repo_path / "pyproject.toml").exists():
+        if (repo_path / "pytest.ini").exists() or (
+            repo_path / "pyproject.toml"
+        ).exists():
             return "pytest"
         return "python -m unittest discover"
     elif language == "node":
@@ -651,7 +636,9 @@ async def validate_issue(issue: QueuedIssue) -> ValidationResult:
     repo_dir = None
     try:
         # Clone repository
-        repo_dir = clone_repository(issue.repo_url, depth=settings.validation.clone_depth)
+        repo_dir = clone_repository(
+            issue.repo_url, depth=settings.validation.clone_depth
+        )
 
         # Reproduce issue
         reproduction = reproduce_issue(issue, context, repo_dir)
@@ -671,7 +658,7 @@ async def validate_issue(issue: QueuedIssue) -> ValidationResult:
             issue_context=context,
             reproduction_result=reproduction,
             code_context=code_context,
-            validation_duration=duration
+            validation_duration=duration,
         )
 
     finally:

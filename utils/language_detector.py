@@ -7,7 +7,6 @@ Detects programming languages in repositories and files.
 from pathlib import Path
 from typing import Optional
 
-
 # Language indicators - files that indicate a specific language
 LANGUAGE_INDICATORS = {
     "python": [
@@ -17,45 +16,16 @@ LANGUAGE_INDICATORS = {
         "Pipfile",
         "setup.cfg",
         "tox.ini",
-        ".python-version"
+        ".python-version",
     ],
-    "javascript": [
-        "package.json",
-        "yarn.lock",
-        "package-lock.json",
-        ".npmrc"
-    ],
-    "typescript": [
-        "tsconfig.json",
-        "tsconfig.base.json"
-    ],
-    "go": [
-        "go.mod",
-        "go.sum"
-    ],
-    "rust": [
-        "Cargo.toml",
-        "Cargo.lock"
-    ],
-    "java": [
-        "pom.xml",
-        "build.gradle",
-        "build.gradle.kts",
-        "settings.gradle"
-    ],
-    "ruby": [
-        "Gemfile",
-        "Gemfile.lock",
-        ".ruby-version"
-    ],
-    "php": [
-        "composer.json",
-        "composer.lock"
-    ],
-    "csharp": [
-        "*.csproj",
-        "*.sln"
-    ]
+    "javascript": ["package.json", "yarn.lock", "package-lock.json", ".npmrc"],
+    "typescript": ["tsconfig.json", "tsconfig.base.json"],
+    "go": ["go.mod", "go.sum"],
+    "rust": ["Cargo.toml", "Cargo.lock"],
+    "java": ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle"],
+    "ruby": ["Gemfile", "Gemfile.lock", ".ruby-version"],
+    "php": ["composer.json", "composer.lock"],
+    "csharp": ["*.csproj", "*.sln"],
 }
 
 # File extension to language mapping
@@ -91,7 +61,7 @@ EXTENSION_MAP = {
     ".pm": "perl",
     ".sh": "shell",
     ".bash": "shell",
-    ".zsh": "shell"
+    ".zsh": "shell",
 }
 
 # Normalized language names
@@ -105,7 +75,7 @@ LANGUAGE_ALIASES = {
     "rb": "ruby",
     "golang": "go",
     "c++": "cpp",
-    "c#": "csharp"
+    "c#": "csharp",
 }
 
 
@@ -227,7 +197,7 @@ def get_test_command(repo_dir: str, language: Optional[str] = None) -> str:
         "rust": "cargo test",
         "java": _get_java_test_command(repo_path),
         "ruby": "bundle exec rspec",
-        "php": "vendor/bin/phpunit"
+        "php": "vendor/bin/phpunit",
     }
 
     return commands.get(language, "pytest")
@@ -250,6 +220,8 @@ def _get_java_test_command(repo_path: Path) -> str:
     """Get Java test command based on build tool."""
     if (repo_path / "pom.xml").exists():
         return "mvn test"
-    if (repo_path / "build.gradle").exists() or (repo_path / "build.gradle.kts").exists():
+    if (repo_path / "build.gradle").exists() or (
+        repo_path / "build.gradle.kts"
+    ).exists():
         return "gradle test"
     return "mvn test"

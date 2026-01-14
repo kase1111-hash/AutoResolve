@@ -5,7 +5,7 @@ Repository management API routes for AutoResolve.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -27,10 +27,7 @@ def verify_api_key(x_api_key: Optional[str] = Header(None)):
 
 
 @router.get("/repos", response_model=list[RepoResponse])
-async def list_repos(
-    db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
-):
+async def list_repos(db: Session = Depends(get_db), _: bool = Depends(verify_api_key)):
     """List all monitored repositories."""
     repos = db.query(MonitoredRepo).all()
     return [
@@ -39,7 +36,7 @@ async def list_repos(
             repo_full_name=repo.repo_full_name,
             webhook_id=repo.webhook_id,
             enabled=repo.enabled,
-            added_at=repo.added_at
+            added_at=repo.added_at,
         )
         for repo in repos
     ]
@@ -49,13 +46,15 @@ async def list_repos(
 async def add_repo(
     repo_data: RepoCreate,
     db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key),
 ):
     """Add a repository to be monitored."""
     # Check if already exists
-    existing = db.query(MonitoredRepo).filter(
-        MonitoredRepo.repo_full_name == repo_data.repo_full_name
-    ).first()
+    existing = (
+        db.query(MonitoredRepo)
+        .filter(MonitoredRepo.repo_full_name == repo_data.repo_full_name)
+        .first()
+    )
 
     if existing:
         raise HTTPException(status_code=409, detail="Repository already monitored")
@@ -64,7 +63,7 @@ async def add_repo(
     repo = MonitoredRepo(
         repo_full_name=repo_data.repo_full_name,
         settings=repo_data.settings,
-        enabled=True
+        enabled=True,
     )
 
     db.add(repo)
@@ -80,7 +79,7 @@ async def add_repo(
         repo_full_name=repo.repo_full_name,
         webhook_id=repo.webhook_id,
         enabled=repo.enabled,
-        added_at=repo.added_at
+        added_at=repo.added_at,
     )
 
 
@@ -88,12 +87,14 @@ async def add_repo(
 async def get_repo(
     repo_full_name: str,
     db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key),
 ):
     """Get a specific monitored repository."""
-    repo = db.query(MonitoredRepo).filter(
-        MonitoredRepo.repo_full_name == repo_full_name
-    ).first()
+    repo = (
+        db.query(MonitoredRepo)
+        .filter(MonitoredRepo.repo_full_name == repo_full_name)
+        .first()
+    )
 
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
@@ -103,7 +104,7 @@ async def get_repo(
         repo_full_name=repo.repo_full_name,
         webhook_id=repo.webhook_id,
         enabled=repo.enabled,
-        added_at=repo.added_at
+        added_at=repo.added_at,
     )
 
 
@@ -111,12 +112,14 @@ async def get_repo(
 async def remove_repo(
     repo_full_name: str,
     db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key),
 ):
     """Remove a repository from monitoring."""
-    repo = db.query(MonitoredRepo).filter(
-        MonitoredRepo.repo_full_name == repo_full_name
-    ).first()
+    repo = (
+        db.query(MonitoredRepo)
+        .filter(MonitoredRepo.repo_full_name == repo_full_name)
+        .first()
+    )
 
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
@@ -135,12 +138,14 @@ async def remove_repo(
 async def toggle_repo(
     repo_full_name: str,
     db: Session = Depends(get_db),
-    _: bool = Depends(verify_api_key)
+    _: bool = Depends(verify_api_key),
 ):
     """Toggle repository monitoring on/off."""
-    repo = db.query(MonitoredRepo).filter(
-        MonitoredRepo.repo_full_name == repo_full_name
-    ).first()
+    repo = (
+        db.query(MonitoredRepo)
+        .filter(MonitoredRepo.repo_full_name == repo_full_name)
+        .first()
+    )
 
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")

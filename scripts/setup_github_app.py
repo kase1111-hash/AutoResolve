@@ -10,13 +10,14 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 def print_step(step: int, message: str):
     """Print a numbered step."""
     print(f"\n{'='*60}")
     print(f"Step {step}: {message}")
-    print('='*60)
+    print("=" * 60)
 
 
 def print_info(message: str):
@@ -24,7 +25,7 @@ def print_info(message: str):
     print(f"  → {message}")
 
 
-def get_input(prompt: str, default: str = None) -> str:
+def get_input(prompt: str, default: Optional[str] = None) -> str:
     """Get user input with optional default."""
     if default:
         result = input(f"  {prompt} [{default}]: ").strip()
@@ -37,10 +38,7 @@ def generate_manifest(app_name: str, webhook_url: str, homepage_url: str) -> dic
     return {
         "name": app_name,
         "url": homepage_url,
-        "hook_attributes": {
-            "url": webhook_url,
-            "active": True
-        },
+        "hook_attributes": {"url": webhook_url, "active": True},
         "redirect_url": f"{homepage_url}/github/callback",
         "callback_urls": [f"{homepage_url}/github/callback"],
         "public": False,
@@ -50,23 +48,23 @@ def generate_manifest(app_name: str, webhook_url: str, homepage_url: str) -> dic
             "contents": "write",
             "metadata": "read",
             "statuses": "write",
-            "checks": "write"
+            "checks": "write",
         },
         "default_events": [
             "issues",
             "issue_comment",
             "pull_request",
             "pull_request_review",
-            "pull_request_review_comment"
-        ]
+            "pull_request_review_comment",
+        ],
     }
 
 
 def setup_interactive():
     """Run interactive setup wizard."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("  AutoResolve GitHub App Setup Wizard")
-    print("="*60)
+    print("=" * 60)
     print("\nThis wizard will help you set up a GitHub App for AutoResolve.")
     print("You'll need admin access to your GitHub organization or account.\n")
 
@@ -75,7 +73,14 @@ def setup_interactive():
 
     app_name = get_input("App name", "AutoResolve")
     webhook_url = get_input("Webhook URL (e.g., https://your-domain.com/api/webhook)")
-    homepage_url = get_input("Homepage URL", webhook_url.rsplit('/api', 1)[0] if '/api' in webhook_url else "https://github.com/your-org/autoresolve")
+    homepage_url = get_input(
+        "Homepage URL",
+        (
+            webhook_url.rsplit("/api", 1)[0]
+            if "/api" in webhook_url
+            else "https://github.com/your-org/autoresolve"
+        ),
+    )
 
     # Step 2: Generate manifest
     print_step(2, "Generate App Manifest")
@@ -88,7 +93,7 @@ def setup_interactive():
 
     # Save manifest
     manifest_path = Path("github_app_manifest.json")
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(manifest_json)
     print_info(f"Saved to {manifest_path}")
 
@@ -152,6 +157,7 @@ def setup_interactive():
     # Check if private key exists
     if Path(private_key_path).exists():
         import shutil
+
         shutil.copy(private_key_path, secrets_dir / "github_private_key.pem")
         print_info(f"Copied private key to {secrets_dir}/github_private_key.pem")
     else:
@@ -200,12 +206,14 @@ OPENAI_API_KEY=your-openai-api-key-here
     print("  4. Choose which repositories to enable")
     print()
     print_info("Or install via URL:")
-    print(f"  https://github.com/apps/{app_name.lower().replace(' ', '-')}/installations/new")
+    print(
+        f"  https://github.com/apps/{app_name.lower().replace(' ', '-')}/installations/new"
+    )
 
     # Done
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("  Setup Complete!")
-    print("="*60)
+    print("=" * 60)
     print("\nNext steps:")
     print("  1. Add your OpenAI API key to .env")
     print("  2. Start the services: docker-compose up -d")
@@ -225,17 +233,20 @@ def validate_config():
     if not env_path.exists():
         errors.append(".env file not found")
     else:
-        env_content = env_path.read_text()
+        env_content = env_path.read_text(encoding="utf-8")
         required_vars = [
             "GITHUB_APP_ID",
             "GITHUB_WEBHOOK_SECRET",
             "DATABASE_URL",
-            "OPENAI_API_KEY"
+            "OPENAI_API_KEY",
         ]
         for var in required_vars:
             if var not in env_content:
                 errors.append(f"Missing {var} in .env")
-            elif f"{var}=your-" in env_content or f"{var}=" in env_content.split(var)[1].split('\n')[0].strip() == "":
+            elif f"{var}=your-" in env_content or (
+                f"{var}=" in env_content
+                and env_content.split(f"{var}=")[1].split("\n")[0].strip() == ""
+            ):
                 warnings.append(f"{var} appears to be a placeholder")
 
     # Check secrets
@@ -270,18 +281,12 @@ def validate_config():
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="AutoResolve GitHub App setup helper"
+    parser = argparse.ArgumentParser(description="AutoResolve GitHub App setup helper")
+    parser.add_argument(
+        "--validate", action="store_true", help="Validate existing configuration"
     )
     parser.add_argument(
-        "--validate",
-        action="store_true",
-        help="Validate existing configuration"
-    )
-    parser.add_argument(
-        "--manifest-only",
-        action="store_true",
-        help="Only generate the manifest file"
+        "--manifest-only", action="store_true", help="Only generate the manifest file"
     )
 
     args = parser.parse_args()
@@ -291,7 +296,9 @@ def main():
     elif args.manifest_only:
         app_name = os.getenv("APP_NAME", "AutoResolve")
         webhook_url = os.getenv("WEBHOOK_URL", "https://your-domain.com/api/webhook")
-        homepage_url = os.getenv("HOMEPAGE_URL", "https://github.com/your-org/autoresolve")
+        homepage_url = os.getenv(
+            "HOMEPAGE_URL", "https://github.com/your-org/autoresolve"
+        )
 
         manifest = generate_manifest(app_name, webhook_url, homepage_url)
         print(json.dumps(manifest, indent=2))

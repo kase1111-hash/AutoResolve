@@ -8,9 +8,8 @@ supporting both online and offline migrations.
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # Import the SQLAlchemy models
 from models.database import Base
@@ -28,10 +27,7 @@ target_metadata = Base.metadata
 
 def get_url():
     """Get database URL from environment or config."""
-    return os.getenv(
-        "DATABASE_URL",
-        config.get_main_option("sqlalchemy.url")
-    )
+    return os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
 
 
 def run_migrations_offline() -> None:

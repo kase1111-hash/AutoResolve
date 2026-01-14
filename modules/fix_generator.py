@@ -95,7 +95,7 @@ def build_fix_prompt(
     context: CodeContext,
     issue: QueuedIssue,
     validation: ValidationResult,
-    previous_errors: Optional[list[str]] = None
+    previous_errors: Optional[list[str]] = None,
 ) -> str:
     """
     Build the LLM prompt for fix generation.
@@ -132,15 +132,14 @@ def build_fix_prompt(
         function_source=function_source,
         issue_body=issue.body,
         expected_behavior=validation.issue_context.expected_behavior or "Not specified",
-        actual_behavior=validation.issue_context.actual_behavior or "See error above"
+        actual_behavior=validation.issue_context.actual_behavior or "See error above",
     )
 
     # Add retry context if there were previous errors
     if previous_errors:
         error_details = "\n".join(f"- {err}" for err in previous_errors[-3:])
         prompt = RETRY_PROMPT_TEMPLATE.format(
-            error_details=error_details,
-            original_prompt=prompt
+            error_details=error_details, original_prompt=prompt
         )
 
     return prompt
@@ -165,13 +164,14 @@ async def call_llm(prompt: str, temperature: float = 0.2, attempt: int = 0) -> s
     adjusted_temp = min(adjusted_temp, 0.9)
 
     from services.llm_service import LLMService
+
     llm = LLMService()
 
     response = await llm.complete(
         prompt=prompt,
         model=settings.fix_generation.llm_model,
         temperature=adjusted_temp,
-        max_tokens=settings.fix_generation.llm_max_tokens
+        max_tokens=settings.fix_generation.llm_max_tokens,
     )
 
     return response
@@ -188,12 +188,12 @@ def extract_diff(response: str) -> Optional[str]:
         Extracted diff or None if not found
     """
     # Try to extract from markdown code block
-    diff_match = re.search(r'```diff\n(.*?)```', response, re.DOTALL)
+    diff_match = re.search(r"```diff\n(.*?)```", response, re.DOTALL)
     if diff_match:
         return diff_match.group(1).strip()
 
     # Try plain diff block
-    diff_match = re.search(r'```\n(---.*?)```', response, re.DOTALL)
+    diff_match = re.search(r"```\n(---.*?)```", response, re.DOTALL)
     if diff_match:
         return diff_match.group(1).strip()
 
@@ -202,20 +202,20 @@ def extract_diff(response: str) -> Optional[str]:
         return response.strip()
 
     # Look for diff indicators anywhere in response
-    lines = response.split('\n')
+    lines = response.split("\n")
     diff_lines = []
     in_diff = False
 
     for line in lines:
-        if line.startswith('---') or line.startswith('diff --git'):
+        if line.startswith("---") or line.startswith("diff --git"):
             in_diff = True
         if in_diff:
-            if line.startswith('```') and diff_lines:
+            if line.startswith("```") and diff_lines:
                 break
             diff_lines.append(line)
 
     if diff_lines:
-        return '\n'.join(diff_lines).strip()
+        return "\n".join(diff_lines).strip()
 
     return None
 
@@ -232,6 +232,7 @@ def parse_unified_diff(diff_text: str) -> ParsedDiff:
     """
     try:
         from unidiff import PatchSet
+
         patch = PatchSet(diff_text)
 
         files = []
@@ -249,28 +250,38 @@ def parse_unified_diff(diff_text: str) -> ParsedDiff:
                     else:
                         continue
 
-                    lines.append(DiffLine(
-                        type=line_type,
-                        content=line.value.rstrip('\n'),
-                        old_lineno=line.source_line_no,
-                        new_lineno=line.target_line_no
-                    ))
+                    lines.append(
+                        DiffLine(
+                            type=line_type,
+                            content=line.value.rstrip("\n"),
+                            old_lineno=line.source_line_no,
+                            new_lineno=line.target_line_no,
+                        )
+                    )
 
-                hunks.append(DiffHunk(
-                    old_start=hunk.source_start,
-                    old_count=hunk.source_length,
-                    new_start=hunk.target_start,
-                    new_count=hunk.target_length,
-                    lines=lines
-                ))
+                hunks.append(
+                    DiffHunk(
+                        old_start=hunk.source_start,
+                        old_count=hunk.source_length,
+                        new_start=hunk.target_start,
+                        new_count=hunk.target_length,
+                        lines=lines,
+                    )
+                )
 
-            files.append(FileDiff(
-                path=patched_file.path,
-                old_path=patched_file.source_file if patched_file.source_file != patched_file.path else None,
-                hunks=hunks,
-                is_new=patched_file.is_added_file,
-                is_deleted=patched_file.is_removed_file
-            ))
+            files.append(
+                FileDiff(
+                    path=patched_file.path,
+                    old_path=(
+                        patched_file.source_file
+                        if patched_file.source_file != patched_file.path
+                        else None
+                    ),
+                    hunks=hunks,
+                    is_new=patched_file.is_added_file,
+                    is_deleted=patched_file.is_removed_file,
+                )
+            )
 
         return ParsedDiff(files=files)
 
@@ -302,24 +313,19 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
         ["git", "apply", "--check", "--verbose"],
         input=diff.encode(),
         cwd=repo_dir,
-        capture_output=True
+        capture_output=True,
     )
 
     if result.returncode != 0:
         return FixValidation(
             valid=False,
             error="Diff does not apply cleanly",
-            details=result.stderr.decode()
+            details=result.stderr.decode(),
         )
 
     # Step 3: Apply diff temporarily and validate syntax
     try:
-        subprocess.run(
-            ["git", "apply"],
-            input=diff.encode(),
-            cwd=repo_dir,
-            check=True
-        )
+        subprocess.run(["git", "apply"], input=diff.encode(), cwd=repo_dir, check=True)
 
         # Validate syntax for each changed file
         for file_diff in parsed.files:
@@ -333,37 +339,28 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
                     return FixValidation(
                         valid=False,
                         error="Syntax error in patched code",
-                        details=str(e)
+                        details=str(e),
                     )
 
             elif language in ("javascript", "typescript", "node"):
                 result = subprocess.run(
-                    ["node", "--check", str(file_path)],
-                    capture_output=True
+                    ["node", "--check", str(file_path)], capture_output=True
                 )
                 if result.returncode != 0:
                     return FixValidation(
                         valid=False,
                         error="Syntax error in patched code",
-                        details=result.stderr.decode()
+                        details=result.stderr.decode(),
                     )
 
         return FixValidation(valid=True, parsed_diff=parsed)
 
     except subprocess.CalledProcessError as e:
-        return FixValidation(
-            valid=False,
-            error="Failed to apply diff",
-            details=str(e)
-        )
+        return FixValidation(valid=False, error="Failed to apply diff", details=str(e))
 
     finally:
         # Revert the applied diff
-        subprocess.run(
-            ["git", "checkout", "."],
-            cwd=repo_dir,
-            capture_output=True
-        )
+        subprocess.run(["git", "checkout", "."], cwd=repo_dir, capture_output=True)
 
 
 def count_diff_lines(parsed: ParsedDiff) -> tuple[int, int]:
@@ -396,11 +393,11 @@ def validate_diff_syntax(diff: str) -> tuple[bool, Optional[str]]:
         return False, "Empty diff"
 
     # Check for basic diff markers
-    lines = diff.strip().split('\n')
+    lines = diff.strip().split("\n")
 
-    has_file_header = any(line.startswith('---') for line in lines)
-    has_file_target = any(line.startswith('+++') for line in lines)
-    has_hunk_header = any(line.startswith('@@') for line in lines)
+    has_file_header = any(line.startswith("---") for line in lines)
+    has_file_target = any(line.startswith("+++") for line in lines)
+    has_hunk_header = any(line.startswith("@@") for line in lines)
 
     if not has_file_header:
         return False, "Missing file header (--- a/...)"
@@ -422,9 +419,7 @@ def validate_diff_syntax(diff: str) -> tuple[bool, Optional[str]]:
 
 
 async def generate_fix(
-    issue: QueuedIssue,
-    validation: ValidationResult,
-    repo_dir: str
+    issue: QueuedIssue, validation: ValidationResult, repo_dir: str
 ) -> Optional[FixProposal]:
     """
     Generate a fix for an issue with retry logic.
@@ -455,31 +450,33 @@ async def generate_fix(
                 context=validation.code_context,
                 issue=issue,
                 validation=validation,
-                previous_errors=previous_errors if attempt > 0 else None
+                previous_errors=previous_errors if attempt > 0 else None,
             )
 
             # Call LLM
             response = await call_llm(
                 prompt=prompt,
                 temperature=settings.fix_generation.llm_temperature,
-                attempt=attempt
+                attempt=attempt,
             )
 
             # Extract diff
             diff = extract_diff(response)
             if not diff:
-                previous_errors.append(f"Attempt {attempt + 1}: No valid diff found in response")
+                previous_errors.append(
+                    f"Attempt {attempt + 1}: No valid diff found in response"
+                )
                 continue
 
             # Validate
             fix_validation = validate_fix(
-                diff=diff,
-                repo_dir=repo_dir,
-                language=validation.code_context.language
+                diff=diff, repo_dir=repo_dir, language=validation.code_context.language
             )
 
             if fix_validation.valid:
-                lines_added, lines_removed = count_diff_lines(fix_validation.parsed_diff)
+                lines_added, lines_removed = count_diff_lines(
+                    fix_validation.parsed_diff
+                )
 
                 return FixProposal(
                     issue_id=issue.issue_id,
@@ -490,7 +487,7 @@ async def generate_fix(
                     lines_added=lines_added,
                     lines_removed=lines_removed,
                     llm_model=settings.fix_generation.llm_model,
-                    generation_attempts=attempt + 1
+                    generation_attempts=attempt + 1,
                 )
             else:
                 error_msg = f"Attempt {attempt + 1}: {fix_validation.error}"
@@ -503,14 +500,14 @@ async def generate_fix(
             previous_errors.append(f"Attempt {attempt + 1}: {str(e)}")
 
     # All attempts failed
-    logger.error(f"Fix generation failed after {max_attempts} attempts: {previous_errors}")
+    logger.error(
+        f"Fix generation failed after {max_attempts} attempts: {previous_errors}"
+    )
     return None
 
 
 async def regenerate_fix(
-    issue: QueuedIssue,
-    validation: ValidationResult,
-    feedback: Optional[str] = None
+    issue: QueuedIssue, validation: ValidationResult, feedback: Optional[str] = None
 ) -> Optional[FixProposal]:
     """
     Regenerate a fix based on feedback.
@@ -526,19 +523,26 @@ async def regenerate_fix(
     settings = get_settings()
 
     # Clone repository again
-    from modules.validation import clone_repository
     import shutil
+
+    from modules.validation import clone_repository
 
     repo_dir = None
     try:
-        repo_dir = clone_repository(issue.repo_url, depth=settings.validation.clone_depth)
+        repo_dir = clone_repository(
+            issue.repo_url, depth=settings.validation.clone_depth
+        )
 
         # If feedback provided, add to context
         if feedback:
             if validation.issue_context.actual_behavior:
-                validation.issue_context.actual_behavior += f"\n\nMaintainer feedback: {feedback}"
+                validation.issue_context.actual_behavior += (
+                    f"\n\nMaintainer feedback: {feedback}"
+                )
             else:
-                validation.issue_context.actual_behavior = f"Maintainer feedback: {feedback}"
+                validation.issue_context.actual_behavior = (
+                    f"Maintainer feedback: {feedback}"
+                )
 
         return await generate_fix(issue, validation, repo_dir)
 

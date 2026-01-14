@@ -7,7 +7,7 @@ Provides request/response logging and correlation IDs.
 import logging
 import time
 import uuid
-from typing import Callable
+from typing import Callable, Optional
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -36,7 +36,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 "query": str(request.query_params),
                 "client_ip": request.client.host if request.client else None,
                 "user_agent": request.headers.get("user-agent"),
-            }
+            },
         )
 
         # Process request
@@ -55,7 +55,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     "path": request.url.path,
                     "status_code": response.status_code,
                     "duration_ms": round(duration_ms, 2),
-                }
+                },
             )
 
             # Add request ID to response headers
@@ -77,7 +77,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     "error": str(e),
                     "duration_ms": round(duration_ms, 2),
                 },
-                exc_info=True
+                exc_info=True,
             )
 
             raise
@@ -91,8 +91,7 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Get or generate correlation ID
         correlation_id = request.headers.get(
-            self.CORRELATION_ID_HEADER,
-            str(uuid.uuid4())
+            self.CORRELATION_ID_HEADER, str(uuid.uuid4())
         )
 
         # Store in request state
@@ -153,18 +152,13 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         # Create audit log entry
         if response.status_code < 400:
             await self._create_audit_entry(
-                request=request,
-                response=response,
-                body=body
+                request=request, response=response, body=body
             )
 
         return response
 
     async def _create_audit_entry(
-        self,
-        request: Request,
-        response: Response,
-        body: bytes = None
+        self, request: Request, response: Response, body: Optional[bytes] = None
     ):
         """Create an audit log entry in the database."""
         try:
@@ -191,7 +185,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                         "status_code": response.status_code,
                         "client_ip": request.client.host if request.client else None,
                         "request_id": get_request_id(request),
-                    }
+                    },
                 )
 
                 db.add(entry)

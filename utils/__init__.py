@@ -8,34 +8,34 @@ Utility modules for AutoResolve.
 """
 
 from utils.diff_parser import (
-    parse_unified_diff,
-    extract_diff_from_text,
-    count_changes,
     apply_diff_to_content,
-    validate_diff_syntax,
+    count_changes,
+    extract_diff_from_text,
     get_affected_files,
+    parse_unified_diff,
+    validate_diff_syntax,
 )
 from utils.language_detector import (
-    detect_language,
     detect_file_language,
-    normalize_language,
-    is_code_file,
+    detect_language,
     get_file_extensions,
     get_test_command,
-)
-from utils.signature import (
-    verify_github_signature,
-    generate_webhook_secret,
-    compute_signature,
-    generate_api_key,
-    hash_api_key,
-    verify_api_key,
+    is_code_file,
+    normalize_language,
 )
 from utils.logging import (
-    setup_logging,
+    LogContext,
     get_logger,
     get_structured_logger,
-    LogContext,
+    setup_logging,
+)
+from utils.signature import (
+    compute_signature,
+    generate_api_key,
+    generate_webhook_secret,
+    hash_api_key,
+    verify_api_key,
+    verify_github_signature,
 )
 
 __all__ = [

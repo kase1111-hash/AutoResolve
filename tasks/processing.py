@@ -13,9 +13,13 @@ from celery import shared_task
 from app.config import get_settings
 from models.database import (
     Approval,
-    FixProposal as DBFixProposal,
+)
+from models.database import FixProposal as DBFixProposal
+from models.database import (
     Issue,
-    SecurityReport as DBSecurityReport,
+)
+from models.database import SecurityReport as DBSecurityReport
+from models.database import (
     Validation,
     get_session_factory,
 )
@@ -60,12 +64,13 @@ def process_issue(self, issue_id: int):
             labels=issue.labels or [],
             author=issue.author or "",
             created_at=issue.github_created_at or datetime.utcnow(),
-            priority=issue.priority
+            priority=issue.priority,
         )
 
         # Step 1: Validate
         import asyncio
-        from modules.validation import validate_issue, clone_repository
+
+        from modules.validation import clone_repository, validate_issue
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -84,9 +89,13 @@ def process_issue(self, issue_id: int):
             error_signature=validation_result.reproduction_result.error_signature,
             issue_context=validation_result.issue_context.model_dump(),
             reproduction_result=validation_result.reproduction_result.model_dump(),
-            code_context=validation_result.code_context.model_dump() if validation_result.code_context else None,
+            code_context=(
+                validation_result.code_context.model_dump()
+                if validation_result.code_context
+                else None
+            ),
             sandbox_image=validation_result.reproduction_result.sandbox_image,
-            validation_duration=validation_result.validation_duration
+            validation_duration=validation_result.validation_duration,
         )
         db.add(validation)
         db.commit()
@@ -98,7 +107,9 @@ def process_issue(self, issue_id: int):
             return
 
         # Step 2: Generate fix
-        repo_dir = clone_repository(queued.repo_url, depth=settings.validation.clone_depth)
+        repo_dir = clone_repository(
+            queued.repo_url, depth=settings.validation.clone_depth
+        )
 
         try:
             from modules.fix_generator import generate_fix
@@ -125,13 +136,15 @@ def process_issue(self, issue_id: int):
                 issue_id=issue_id,
                 validation_id=validation.id,
                 suggested_patch=proposal.suggested_patch,
-                parsed_diff=proposal.parsed_diff.model_dump() if proposal.parsed_diff else None,
+                parsed_diff=(
+                    proposal.parsed_diff.model_dump() if proposal.parsed_diff else None
+                ),
                 affected_files=proposal.affected_files,
                 lines_added=proposal.lines_added,
                 lines_removed=proposal.lines_removed,
                 llm_model=proposal.llm_model,
                 generation_attempts=proposal.generation_attempts,
-                status="pending_audit"
+                status="pending_audit",
             )
             db.add(db_proposal)
             db.commit()
@@ -144,7 +157,9 @@ def process_issue(self, issue_id: int):
 
             try:
                 security_report = loop.run_until_complete(
-                    audit_fix(proposal, repo_dir, validation_result.code_context.language)
+                    audit_fix(
+                        proposal, repo_dir, validation_result.code_context.language
+                    )
                 )
             finally:
                 loop.close()
@@ -161,7 +176,7 @@ def process_issue(self, issue_id: int):
                 scanners_used=security_report.scanners_used,
                 dynamic_scan_passed=security_report.dynamic_scan_passed,
                 recommendation=security_report.recommendation,
-                scan_duration=security_report.scan_duration
+                scan_duration=security_report.scan_duration,
             )
             db.add(db_report)
             db.commit()
@@ -189,7 +204,7 @@ def process_issue(self, issue_id: int):
                         issue_number=issue.github_issue_id,
                         proposal=proposal,
                         security_report=security_report,
-                        reproduction_valid=validation_result.valid
+                        reproduction_valid=validation_result.valid,
                     )
                 )
             finally:
@@ -197,9 +212,7 @@ def process_issue(self, issue_id: int):
 
             # Create approval record
             approval = Approval(
-                proposal_id=db_proposal.id,
-                status="pending",
-                comment_id=comment_id
+                proposal_id=db_proposal.id, status="pending", comment_id=comment_id
             )
             db.add(approval)
             db.commit()
@@ -209,9 +222,9 @@ def process_issue(self, issue_id: int):
 
             # Schedule approval polling
             from tasks.polling import poll_approval
+
             poll_approval.apply_async(
-                args=[db_proposal.id],
-                countdown=300  # Check after 5 minutes
+                args=[db_proposal.id], countdown=300  # Check after 5 minutes
             )
 
             logger.info(f"Issue {issue_id} processing complete, awaiting approval")
@@ -248,7 +261,9 @@ def create_pr(self, proposal_id: int, approved_by: str, auto_merge: bool = True)
     db = SessionLocal()
 
     try:
-        proposal = db.query(DBFixProposal).filter(DBFixProposal.id == proposal_id).first()
+        proposal = (
+            db.query(DBFixProposal).filter(DBFixProposal.id == proposal_id).first()
+        )
         if not proposal:
             logger.error(f"Proposal {proposal_id} not found")
             return
@@ -266,13 +281,11 @@ def create_pr(self, proposal_id: int, approved_by: str, auto_merge: bool = True)
             suggested_patch=proposal.suggested_patch,
             affected_files=proposal.affected_files,
             lines_added=proposal.lines_added,
-            lines_removed=proposal.lines_removed
+            lines_removed=proposal.lines_removed,
         )
 
         approval = ApprovalResult(
-            status="approved",
-            approved_by=approved_by,
-            auto_merge=auto_merge
+            status="approved", approved_by=approved_by, auto_merge=auto_merge
         )
 
         import asyncio
@@ -288,9 +301,9 @@ def create_pr(self, proposal_id: int, approved_by: str, auto_merge: bool = True)
             loop.close()
 
         # Update approval record
-        db_approval = db.query(Approval).filter(
-            Approval.proposal_id == proposal_id
-        ).first()
+        db_approval = (
+            db.query(Approval).filter(Approval.proposal_id == proposal_id).first()
+        )
 
         if db_approval:
             db_approval.status = "approved"
@@ -307,7 +320,9 @@ def create_pr(self, proposal_id: int, approved_by: str, auto_merge: bool = True)
         logger.info(f"Created PR #{pr_result.pr_number} for proposal {proposal_id}")
 
     except Exception as e:
-        logger.error(f"Error creating PR for proposal {proposal_id}: {e}", exc_info=True)
+        logger.error(
+            f"Error creating PR for proposal {proposal_id}: {e}", exc_info=True
+        )
         self.retry(exc=e)
 
     finally:

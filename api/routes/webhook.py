@@ -29,9 +29,7 @@ def verify_signature(payload_body: bytes, signature_header: str, secret: str) ->
             return False
 
         expected_signature = hmac.new(
-            secret.encode(),
-            payload_body,
-            hashlib.sha256
+            secret.encode(), payload_body, hashlib.sha256
         ).hexdigest()
 
         return hmac.compare_digest(expected_signature, signature)
@@ -55,7 +53,9 @@ async def handle_github_webhook(
 
     # Verify webhook signature
     if settings.github.webhook_secret:
-        if not verify_signature(body, x_hub_signature_256 or "", settings.github.webhook_secret):
+        if not verify_signature(
+            body, x_hub_signature_256 or "", settings.github.webhook_secret
+        ):
             logger.warning("Invalid webhook signature received")
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
@@ -77,7 +77,7 @@ async def handle_github_webhook(
         return {"status": "ignored", "reason": f"action '{action}' not processed"}
 
     # Import here to avoid circular imports
-    from modules.monitoring import should_process, is_already_queued, enqueue_issue
+    from modules.monitoring import enqueue_issue, is_already_queued, should_process
 
     issue = payload.get("issue", {})
     repo = payload.get("repository", {})
@@ -106,9 +106,11 @@ async def handle_github_webhook(
         body=issue.get("body", ""),
         labels=[label.get("name", "") for label in issue.get("labels", [])],
         author=issue.get("user", {}).get("login", ""),
-        created_at=datetime.fromisoformat(
-            issue.get("created_at", "").replace("Z", "+00:00")
-        ) if issue.get("created_at") else datetime.utcnow(),
+        created_at=(
+            datetime.fromisoformat(issue.get("created_at", "").replace("Z", "+00:00"))
+            if issue.get("created_at")
+            else datetime.utcnow()
+        ),
     )
 
     # Enqueue for processing
@@ -120,5 +122,5 @@ async def handle_github_webhook(
         "status": "queued",
         "queue_id": str(queued_issue.queue_id),
         "issue_id": issue_number,
-        "repo": repo_full_name
+        "repo": repo_full_name,
     }

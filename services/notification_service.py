@@ -20,43 +20,43 @@ SLACK_TEMPLATES = {
     "issue.validated": {
         "color": "#36a64f",
         "title": "Issue Validated",
-        "text": "Issue #{issue_id} in {repo} has been validated and confirmed reproducible."
+        "text": "Issue #{issue_id} in {repo} has been validated and confirmed reproducible.",
     },
     "fix.generated": {
         "color": "#2196F3",
         "title": "Fix Generated",
-        "text": "A fix has been generated for issue #{issue_id} in {repo}."
+        "text": "A fix has been generated for issue #{issue_id} in {repo}.",
     },
     "security.critical_finding": {
         "color": "#F44336",
         "title": "Critical Security Finding",
-        "text": "A critical security issue was detected in the proposed fix for #{issue_id}."
+        "text": "A critical security issue was detected in the proposed fix for #{issue_id}.",
     },
     "approval.pending": {
         "color": "#FFC107",
         "title": "Approval Pending",
-        "text": "Fix for issue #{issue_id} in {repo} is awaiting maintainer approval."
+        "text": "Fix for issue #{issue_id} in {repo} is awaiting maintainer approval.",
     },
     "approval.approved": {
         "color": "#4CAF50",
         "title": "Fix Approved",
-        "text": "Fix for issue #{issue_id} in {repo} has been approved by @{approved_by}."
+        "text": "Fix for issue #{issue_id} in {repo} has been approved by @{approved_by}.",
     },
     "approval.rejected": {
         "color": "#F44336",
         "title": "Fix Rejected",
-        "text": "Fix for issue #{issue_id} in {repo} was rejected."
+        "text": "Fix for issue #{issue_id} in {repo} was rejected.",
     },
     "pr.created": {
         "color": "#2196F3",
         "title": "Pull Request Created",
-        "text": "PR #{pr_number} created for issue #{issue_id} in {repo}."
+        "text": "PR #{pr_number} created for issue #{issue_id} in {repo}.",
     },
     "pr.merged": {
         "color": "#4CAF50",
         "title": "Pull Request Merged",
-        "text": "PR #{pr_number} for issue #{issue_id} in {repo} has been merged!"
-    }
+        "text": "PR #{pr_number} for issue #{issue_id} in {repo} has been merged!",
+    },
 }
 
 
@@ -64,7 +64,7 @@ async def send_slack_notification(
     event_type: str,
     repo: str,
     issue_id: Optional[int] = None,
-    details: Optional[dict] = None
+    details: Optional[dict] = None,
 ) -> bool:
     """
     Send a Slack notification.
@@ -94,11 +94,7 @@ async def send_slack_notification(
         return False
 
     # Format message
-    format_data = {
-        "repo": repo,
-        "issue_id": issue_id or "N/A",
-        **(details or {})
-    }
+    format_data = {"repo": repo, "issue_id": issue_id or "N/A", **(details or {})}
 
     try:
         text = template["text"].format(**format_data)
@@ -115,9 +111,9 @@ async def send_slack_notification(
                 "title": template["title"],
                 "text": text,
                 "footer": "AutoResolve",
-                "ts": int(datetime.utcnow().timestamp())
+                "ts": int(datetime.utcnow().timestamp()),
             }
-        ]
+        ],
     }
 
     try:
@@ -135,7 +131,7 @@ async def send_email_notification(
     event_type: str,
     repo: str,
     issue_id: Optional[int] = None,
-    details: Optional[dict] = None
+    details: Optional[dict] = None,
 ) -> bool:
     """
     Send an email notification.
@@ -171,18 +167,14 @@ async def send_email_notification(
         for key, value in details.items():
             body_lines.append(f"  {key}: {value}")
 
-    body_lines.extend([
-        "",
-        "---",
-        "AutoResolve - Automated GitHub Issue Resolution"
-    ])
+    body_lines.extend(["", "---", "AutoResolve - Automated GitHub Issue Resolution"])
 
     body = "\n".join(body_lines)
 
     try:
         import smtplib
-        from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
 
         msg = MIMEMultipart()
         msg["From"] = settings.notifications.email_from
@@ -197,14 +189,13 @@ async def send_email_notification(
             return False
 
         with smtplib.SMTP(
-            settings.notifications.smtp_host,
-            settings.notifications.smtp_port
+            settings.notifications.smtp_host, settings.notifications.smtp_port
         ) as server:
             server.starttls()
             if settings.notifications.smtp_user:
                 server.login(
                     settings.notifications.smtp_user,
-                    settings.notifications.smtp_password
+                    settings.notifications.smtp_password,
                 )
 
             for recipient in recipients:
@@ -219,15 +210,12 @@ async def send_email_notification(
         return False
 
 
-def format_notification_details(
-    event_type: str,
-    data: dict
-) -> dict:
+def format_notification_details(_event_type: str, data: dict) -> dict:
     """
     Format notification details for display.
 
     Args:
-        event_type: Type of event
+        _event_type: Type of event (reserved for future use)
         data: Raw event data
 
     Returns:

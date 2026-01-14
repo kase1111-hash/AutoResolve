@@ -11,6 +11,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 from uuid import uuid4
 
 # Add parent directory to path for imports
@@ -45,7 +46,7 @@ Should validate input and throw IllegalArgumentException for null orders.
 """,
             "labels": ["bug", "autoresolve"],
             "error_type": "NullPointerException",
-            "error_signature": "NPE:OrderService.processOrder:42"
+            "error_signature": "NPE:OrderService.processOrder:42",
         },
         {
             "github_issue_id": 2,
@@ -72,7 +73,7 @@ Should handle undefined users gracefully.
 """,
             "labels": ["bug", "frontend", "autoresolve"],
             "error_type": "TypeError",
-            "error_signature": "TypeError:UserList:map:undefined"
+            "error_signature": "TypeError:UserList:map:undefined",
         },
         {
             "github_issue_id": 3,
@@ -92,7 +93,7 @@ Should pass the username parameter.
 """,
             "labels": ["bug", "autoresolve", "security"],
             "error_type": "AttributeError",
-            "error_signature": "AttributeError:authenticate:get_user:None"
+            "error_signature": "AttributeError:authenticate:get_user:None",
         },
         {
             "github_issue_id": 4,
@@ -114,8 +115,8 @@ Use parameterized queries instead.
 """,
             "labels": ["security", "autoresolve", "high-priority"],
             "error_type": "SQL_INJECTION",
-            "error_signature": "SQLI:get_user_by_email:queries.py"
-        }
+            "error_signature": "SQLI:get_user_by_email:queries.py",
+        },
     ]
 
 
@@ -139,7 +140,7 @@ def get_sample_proposals():
 """,
             "affected_files": ["src/main/java/com/example/OrderService.java"],
             "confidence_score": 0.95,
-            "status": "pending_approval"
+            "status": "pending_approval",
         },
         {
             "issue_index": 1,
@@ -161,7 +162,7 @@ def get_sample_proposals():
 """,
             "affected_files": ["src/components/UserList.js"],
             "confidence_score": 0.92,
-            "status": "approved"
+            "status": "approved",
         },
         {
             "issue_index": 3,
@@ -178,30 +179,35 @@ def get_sample_proposals():
 """,
             "affected_files": ["db/queries.py"],
             "confidence_score": 0.98,
-            "status": "merged"
-        }
+            "status": "merged",
+        },
     ]
 
 
-def seed_database(db_url: str = None):
+def seed_database(db_url: Optional[str] = None):
     """Seed the database with test data."""
     try:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        from models.database import Base, Issue, FixProposal, Approval, MonitoredRepo
+
+        from models.database import Approval, Base, FixProposal, Issue, MonitoredRepo
     except ImportError as e:
         print(f"Error importing models: {e}")
-        print("Make sure you're running from the project root with dependencies installed.")
+        print(
+            "Make sure you're running from the project root with dependencies installed."
+        )
         return False
 
     # Get database URL
     if not db_url:
         db_url = os.getenv(
             "DATABASE_URL",
-            "postgresql://autoresolve:password@localhost:5432/autoresolve"
+            "postgresql://autoresolve:password@localhost:5432/autoresolve",
         )
 
-    print(f"Connecting to database: {db_url.split('@')[1] if '@' in db_url else db_url}")
+    print(
+        f"Connecting to database: {db_url.split('@')[1] if '@' in db_url else db_url}"
+    )
 
     try:
         engine = create_engine(db_url)
@@ -216,15 +222,17 @@ def seed_database(db_url: str = None):
     print("\nSeeding monitored repositories...")
     repos = ["test-org/test-repo", "test-org/python-app"]
     for repo_name in repos:
-        existing = db.query(MonitoredRepo).filter(
-            MonitoredRepo.repo_full_name == repo_name
-        ).first()
+        existing = (
+            db.query(MonitoredRepo)
+            .filter(MonitoredRepo.repo_full_name == repo_name)
+            .first()
+        )
         if not existing:
             repo = MonitoredRepo(
                 repo_full_name=repo_name,
                 installation_id=12345,
                 enabled=True,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
             db.add(repo)
             print(f"  + {repo_name}")
@@ -237,10 +245,14 @@ def seed_database(db_url: str = None):
     db_issues = []
 
     for issue_data in sample_issues:
-        existing = db.query(Issue).filter(
-            Issue.github_issue_id == issue_data["github_issue_id"],
-            Issue.repo_full_name == issue_data["repo_full_name"]
-        ).first()
+        existing = (
+            db.query(Issue)
+            .filter(
+                Issue.github_issue_id == issue_data["github_issue_id"],
+                Issue.repo_full_name == issue_data["repo_full_name"],
+            )
+            .first()
+        )
 
         if not existing:
             issue = Issue(
@@ -254,12 +266,14 @@ def seed_database(db_url: str = None):
                 error_signature=issue_data.get("error_signature"),
                 status="new",
                 created_at=datetime.utcnow() - timedelta(hours=len(db_issues) * 2),
-                updated_at=datetime.utcnow()
+                updated_at=datetime.utcnow(),
             )
             db.add(issue)
             db.flush()
             db_issues.append(issue)
-            print(f"  + Issue #{issue_data['github_issue_id']}: {issue_data['title'][:50]}...")
+            print(
+                f"  + Issue #{issue_data['github_issue_id']}: {issue_data['title'][:50]}..."
+            )
         else:
             db_issues.append(existing)
             print(f"  - Issue #{issue_data['github_issue_id']} (exists)")
@@ -271,9 +285,9 @@ def seed_database(db_url: str = None):
     for prop_data in sample_proposals:
         issue = db_issues[prop_data["issue_index"]]
 
-        existing = db.query(FixProposal).filter(
-            FixProposal.issue_id == issue.id
-        ).first()
+        existing = (
+            db.query(FixProposal).filter(FixProposal.issue_id == issue.id).first()
+        )
 
         if not existing:
             proposal = FixProposal(
@@ -283,10 +297,11 @@ def seed_database(db_url: str = None):
                 affected_files=prop_data["affected_files"],
                 confidence_score=prop_data["confidence_score"],
                 status=prop_data["status"],
-                generated_at=datetime.utcnow() - timedelta(hours=prop_data["issue_index"]),
+                generated_at=datetime.utcnow()
+                - timedelta(hours=prop_data["issue_index"]),
                 model_used="gpt-4",
                 prompt_tokens=500,
-                completion_tokens=200
+                completion_tokens=200,
             )
             db.add(proposal)
             db.flush()
@@ -304,11 +319,13 @@ def seed_database(db_url: str = None):
                     status="approved",
                     approved_by="test-maintainer",
                     approved_at=datetime.utcnow() - timedelta(minutes=30),
-                    resolved_at=datetime.utcnow() - timedelta(minutes=30)
+                    resolved_at=datetime.utcnow() - timedelta(minutes=30),
                 )
                 db.add(approval)
 
-            print(f"  + Proposal for issue #{issue.github_issue_id} ({prop_data['status']})")
+            print(
+                f"  + Proposal for issue #{issue.github_issue_id} ({prop_data['status']})"
+            )
         else:
             print(f"  - Proposal for issue #{issue.github_issue_id} (exists)")
 
@@ -340,12 +357,20 @@ def seed_fixtures():
     print("\n✓ Fixtures created successfully!")
 
 
-def clear_database(db_url: str = None):
+def clear_database(db_url: Optional[str] = None):
     """Clear all test data from database."""
     try:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        from models.database import Issue, FixProposal, Approval, Validation, SecurityReport, AuditLog
+
+        from models.database import (
+            Approval,
+            AuditLog,
+            FixProposal,
+            Issue,
+            SecurityReport,
+            Validation,
+        )
     except ImportError as e:
         print(f"Error importing models: {e}")
         return False
@@ -353,7 +378,7 @@ def clear_database(db_url: str = None):
     if not db_url:
         db_url = os.getenv(
             "DATABASE_URL",
-            "postgresql://autoresolve:password@localhost:5432/autoresolve"
+            "postgresql://autoresolve:password@localhost:5432/autoresolve",
         )
 
     confirm = input(f"Clear all data from {db_url.split('@')[1]}? (y/N): ")
@@ -390,18 +415,17 @@ def main():
         description="Seed test data for AutoResolve development"
     )
     parser.add_argument(
-        "--database-url",
-        help="Database URL (default: from DATABASE_URL env var)"
+        "--database-url", help="Database URL (default: from DATABASE_URL env var)"
     )
     parser.add_argument(
         "--fixtures-only",
         action="store_true",
-        help="Only create fixture files, don't touch database"
+        help="Only create fixture files, don't touch database",
     )
     parser.add_argument(
         "--clear",
         action="store_true",
-        help="Clear existing test data instead of seeding"
+        help="Clear existing test data instead of seeding",
     )
 
     args = parser.parse_args()

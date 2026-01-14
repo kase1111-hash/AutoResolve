@@ -2,16 +2,17 @@
 Tests for the security audit module.
 """
 
-import pytest
 from uuid import uuid4
 
+import pytest
+
+from models.schemas import Finding, SecurityReport
 from modules.security_auditor import (
     assess_severity,
     compute_risk_score,
     deduplicate_findings,
     generate_recommendation,
 )
-from models.schemas import Finding, SecurityReport
 
 
 @pytest.fixture
@@ -86,7 +87,7 @@ class TestAssessSeverity:
             file="test.py",
             line_start=1,
             line_end=1,
-            message="Test"
+            message="Test",
         )
         assert assess_severity(finding) == "low"
 
@@ -124,7 +125,7 @@ class TestDeduplicateFindings:
             file="test.py",
             line_start=10,
             line_end=10,
-            message="Test"
+            message="Test",
         )
         finding2 = Finding(
             finding_id=uuid4(),
@@ -134,12 +135,14 @@ class TestDeduplicateFindings:
             file="test.py",
             line_start=10,
             line_end=10,
-            message="Test similar"
+            message="Test similar",
         )
 
         result = deduplicate_findings([finding1, finding2])
 
-        assert len(result) == 1  # Both findings have same file, line, and rule_id prefix
+        assert (
+            len(result) == 1
+        )  # Both findings have same file, line, and rule_id prefix
 
     def test_keeps_different_findings(self):
         """Should keep different findings."""
@@ -151,7 +154,7 @@ class TestDeduplicateFindings:
             file="test.py",
             line_start=10,
             line_end=10,
-            message="Test"
+            message="Test",
         )
         finding2 = Finding(
             finding_id=uuid4(),
@@ -161,7 +164,7 @@ class TestDeduplicateFindings:
             file="other.py",
             line_start=20,
             line_end=20,
-            message="Other"
+            message="Other",
         )
 
         result = deduplicate_findings([finding1, finding2])

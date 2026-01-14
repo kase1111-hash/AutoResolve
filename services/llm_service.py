@@ -26,9 +26,8 @@ class LLMService:
         if self._client is None:
             try:
                 from openai import AsyncOpenAI
-                self._client = AsyncOpenAI(
-                    api_key=os.environ.get("OPENAI_API_KEY")
-                )
+
+                self._client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
             except ImportError:
                 logger.error("OpenAI package not installed")
                 raise
@@ -41,7 +40,7 @@ class LLMService:
         model: Optional[str] = None,
         temperature: float = 0.2,
         max_tokens: int = 4096,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
     ) -> str:
         """
         Generate a completion from the LLM.
@@ -65,7 +64,7 @@ class LLMService:
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                system_prompt=system_prompt
+                system_prompt=system_prompt,
             )
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
@@ -76,7 +75,7 @@ class LLMService:
         model: str,
         temperature: float,
         max_tokens: int,
-        system_prompt: Optional[str]
+        system_prompt: Optional[str],
     ) -> str:
         """Generate completion using OpenAI API."""
         client = self._get_openai_client()
@@ -93,7 +92,7 @@ class LLMService:
                 model=model,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
 
             return response.choices[0].message.content or ""
@@ -117,6 +116,7 @@ class LLMService:
 
         try:
             import tiktoken
+
             encoding = tiktoken.encoding_for_model(model)
             return len(encoding.encode(text))
         except Exception:

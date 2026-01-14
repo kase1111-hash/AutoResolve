@@ -8,6 +8,6 @@ AutoResolve processing modules.
 - approval: PR creation and approval workflow
 """
 
-from modules import monitoring, validation, fix_generator, security_auditor, approval
+from modules import approval, fix_generator, monitoring, security_auditor, validation
 
 __all__ = ["monitoring", "validation", "fix_generator", "security_auditor", "approval"]

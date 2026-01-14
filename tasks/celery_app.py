@@ -13,7 +13,7 @@ celery_app = Celery(
     "autoresolve",
     broker=settings.celery.broker_url,
     backend=settings.celery.result_backend,
-    include=["tasks.processing", "tasks.polling"]
+    include=["tasks.processing", "tasks.polling"],
 )
 
 # Celery configuration

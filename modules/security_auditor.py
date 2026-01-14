@@ -24,38 +24,29 @@ from models.schemas import (
 logger = logging.getLogger(__name__)
 
 # Severity weights for risk scoring
-SEVERITY_WEIGHTS = {
-    "critical": 10,
-    "high": 7,
-    "medium": 4,
-    "low": 2,
-    "info": 1
-}
+SEVERITY_WEIGHTS = {"critical": 10, "high": 7, "medium": 4, "low": 2, "info": 1}
 
 # CWE to severity mapping
 CWE_SEVERITY_MAP = {
     # Critical
-    "CWE-78": "critical",   # OS Command Injection
-    "CWE-89": "critical",   # SQL Injection
-    "CWE-94": "critical",   # Code Injection
+    "CWE-78": "critical",  # OS Command Injection
+    "CWE-89": "critical",  # SQL Injection
+    "CWE-94": "critical",  # Code Injection
     "CWE-502": "critical",  # Deserialization
-
     # High
-    "CWE-79": "high",       # XSS
-    "CWE-22": "high",       # Path Traversal
-    "CWE-918": "high",      # SSRF
-    "CWE-611": "high",      # XXE
-    "CWE-295": "high",      # Improper Cert Validation
-
+    "CWE-79": "high",  # XSS
+    "CWE-22": "high",  # Path Traversal
+    "CWE-918": "high",  # SSRF
+    "CWE-611": "high",  # XXE
+    "CWE-295": "high",  # Improper Cert Validation
     # Medium
-    "CWE-327": "medium",    # Broken Crypto
-    "CWE-330": "medium",    # Insufficient Randomness
-    "CWE-532": "medium",    # Log Injection
-    "CWE-798": "medium",    # Hardcoded Credentials
-
+    "CWE-327": "medium",  # Broken Crypto
+    "CWE-330": "medium",  # Insufficient Randomness
+    "CWE-532": "medium",  # Log Injection
+    "CWE-798": "medium",  # Hardcoded Credentials
     # Low
-    "CWE-200": "low",       # Information Exposure
-    "CWE-209": "low",       # Error Message Exposure
+    "CWE-200": "low",  # Information Exposure
+    "CWE-209": "low",  # Error Message Exposure
 }
 
 
@@ -70,7 +61,7 @@ def run_bandit(repo_dir: str, affected_files: list[str]) -> list[Finding]:
     Returns:
         List of security findings
     """
-    python_files = [f for f in affected_files if f.endswith('.py')]
+    python_files = [f for f in affected_files if f.endswith(".py")]
     if not python_files:
         return []
 
@@ -78,11 +69,7 @@ def run_bandit(repo_dir: str, affected_files: list[str]) -> list[Finding]:
         cmd = ["bandit", "-r", "-f", "json", "--exit-zero"]
         cmd.extend([str(Path(repo_dir) / f) for f in python_files])
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=120
-        )
+        result = subprocess.run(cmd, capture_output=True, timeout=120)
 
         if result.stdout:
             data = json.loads(result.stdout)
@@ -101,7 +88,7 @@ def run_bandit(repo_dir: str, affected_files: list[str]) -> list[Finding]:
                     line_end=issue.get("line_number", 0),
                     code_snippet=issue.get("code", ""),
                     message=issue.get("issue_text", ""),
-                    recommendation=issue.get("more_info", None)
+                    recommendation=issue.get("more_info", None),
                 )
                 findings.append(finding)
 
@@ -118,23 +105,23 @@ def run_bandit(repo_dir: str, affected_files: list[str]) -> list[Finding]:
 def _bandit_test_to_cwe(test_id: str) -> Optional[str]:
     """Map Bandit test ID to CWE."""
     mapping = {
-        "B102": "CWE-78",   # exec used
-        "B103": "CWE-94",   # set_bad_file_permissions
+        "B102": "CWE-78",  # exec used
+        "B103": "CWE-94",  # set_bad_file_permissions
         "B104": "CWE-200",  # hardcoded_bind_all_interfaces
         "B105": "CWE-798",  # hardcoded_password_string
         "B106": "CWE-798",  # hardcoded_password_funcarg
         "B107": "CWE-798",  # hardcoded_password_default
-        "B108": "CWE-78",   # hardcoded_tmp_directory
-        "B110": "CWE-78",   # try_except_pass
-        "B201": "CWE-78",   # flask_debug_true
+        "B108": "CWE-78",  # hardcoded_tmp_directory
+        "B110": "CWE-78",  # try_except_pass
+        "B201": "CWE-78",  # flask_debug_true
         "B301": "CWE-502",  # pickle
         "B302": "CWE-502",  # marshal
         "B303": "CWE-327",  # md5
         "B304": "CWE-327",  # ciphers
         "B305": "CWE-327",  # cipher_modes
-        "B306": "CWE-94",   # mktemp_q
-        "B307": "CWE-94",   # eval
-        "B308": "CWE-79",   # mark_safe
+        "B306": "CWE-94",  # mktemp_q
+        "B307": "CWE-94",  # eval
+        "B308": "CWE-79",  # mark_safe
         "B310": "CWE-918",  # urllib_urlopen
         "B311": "CWE-330",  # random
         "B312": "CWE-295",  # telnetlib
@@ -154,22 +141,22 @@ def _bandit_test_to_cwe(test_id: str) -> Optional[str]:
         "B503": "CWE-327",  # ssl_with_bad_defaults
         "B504": "CWE-327",  # ssl_with_no_version
         "B505": "CWE-327",  # weak_cryptographic_key
-        "B506": "CWE-94",   # yaml_load
+        "B506": "CWE-94",  # yaml_load
         "B507": "CWE-295",  # ssh_no_host_key_verification
-        "B601": "CWE-78",   # paramiko_calls
-        "B602": "CWE-78",   # subprocess_popen_with_shell_equals_true
-        "B603": "CWE-78",   # subprocess_without_shell_equals_true
-        "B604": "CWE-78",   # any_other_function_with_shell_equals_true
-        "B605": "CWE-78",   # start_process_with_a_shell
-        "B606": "CWE-78",   # start_process_with_no_shell
-        "B607": "CWE-78",   # start_process_with_partial_path
-        "B608": "CWE-89",   # hardcoded_sql_expressions
-        "B609": "CWE-78",   # linux_commands_wildcard_injection
-        "B610": "CWE-89",   # django_extra_used
-        "B611": "CWE-89",   # django_rawsql_used
-        "B701": "CWE-94",   # jinja2_autoescape_false
-        "B702": "CWE-79",   # use_of_mako_templates
-        "B703": "CWE-79",   # django_mark_safe
+        "B601": "CWE-78",  # paramiko_calls
+        "B602": "CWE-78",  # subprocess_popen_with_shell_equals_true
+        "B603": "CWE-78",  # subprocess_without_shell_equals_true
+        "B604": "CWE-78",  # any_other_function_with_shell_equals_true
+        "B605": "CWE-78",  # start_process_with_a_shell
+        "B606": "CWE-78",  # start_process_with_no_shell
+        "B607": "CWE-78",  # start_process_with_partial_path
+        "B608": "CWE-89",  # hardcoded_sql_expressions
+        "B609": "CWE-78",  # linux_commands_wildcard_injection
+        "B610": "CWE-89",  # django_extra_used
+        "B611": "CWE-89",  # django_rawsql_used
+        "B701": "CWE-94",  # jinja2_autoescape_false
+        "B702": "CWE-79",  # use_of_mako_templates
+        "B703": "CWE-79",  # django_mark_safe
     }
     return mapping.get(test_id)
 
@@ -188,12 +175,7 @@ def run_semgrep(repo_dir: str, affected_files: list[str]) -> list[Finding]:
     settings = get_settings()
 
     try:
-        cmd = [
-            "semgrep", "scan",
-            "--config", "auto",
-            "--json",
-            "--no-git-ignore"
-        ]
+        cmd = ["semgrep", "scan", "--config", "auto", "--json", "--no-git-ignore"]
 
         # Add configured rulesets
         for ruleset in settings.security.semgrep_rulesets:
@@ -202,11 +184,7 @@ def run_semgrep(repo_dir: str, affected_files: list[str]) -> list[Finding]:
 
         cmd.extend([str(Path(repo_dir) / f) for f in affected_files])
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=180
-        )
+        result = subprocess.run(cmd, capture_output=True, timeout=180)
 
         findings = []
 
@@ -246,7 +224,7 @@ def run_semgrep(repo_dir: str, affected_files: list[str]) -> list[Finding]:
                     line_end=match.get("end", {}).get("line", 0),
                     code_snippet=match.get("extra", {}).get("lines", ""),
                     message=match.get("extra", {}).get("message", ""),
-                    recommendation=metadata.get("fix", None)
+                    recommendation=metadata.get("fix", None),
                 )
                 findings.append(finding)
 
@@ -279,18 +257,10 @@ def run_custom_rules(repo_dir: str, affected_files: list[str]) -> list[Finding]:
         return []
 
     try:
-        cmd = [
-            "semgrep", "scan",
-            "--config", str(custom_rules_path),
-            "--json"
-        ]
+        cmd = ["semgrep", "scan", "--config", str(custom_rules_path), "--json"]
         cmd.extend([str(Path(repo_dir) / f) for f in affected_files])
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=60
-        )
+        result = subprocess.run(cmd, capture_output=True, timeout=60)
 
         findings = []
 
@@ -302,12 +272,15 @@ def run_custom_rules(repo_dir: str, affected_files: list[str]) -> list[Finding]:
                     finding_id=uuid4(),
                     scanner="custom",
                     rule_id=match.get("check_id", ""),
-                    severity=match.get("extra", {}).get("metadata", {}).get("severity", "medium").lower(),
+                    severity=match.get("extra", {})
+                    .get("metadata", {})
+                    .get("severity", "medium")
+                    .lower(),
                     file=match.get("path", ""),
                     line_start=match.get("start", {}).get("line", 0),
                     line_end=match.get("end", {}).get("line", 0),
                     code_snippet=match.get("extra", {}).get("lines", ""),
-                    message=match.get("extra", {}).get("message", "")
+                    message=match.get("extra", {}).get("message", ""),
                 )
                 findings.append(finding)
 
@@ -373,7 +346,11 @@ def deduplicate_findings(findings: list[Finding]) -> list[Finding]:
 
     for finding in findings:
         # Create a unique key based on file, line, and rule type
-        key = (finding.file, finding.line_start, finding.rule_id[:20] if finding.rule_id else "")
+        key = (
+            finding.file,
+            finding.line_start,
+            finding.rule_id[:20] if finding.rule_id else "",
+        )
         if key not in seen:
             seen.add(key)
             unique.append(finding)
@@ -412,9 +389,7 @@ def filter_false_positives(findings: list[Finding]) -> list[Finding]:
 
 
 def run_static_analysis(
-    repo_dir: str,
-    affected_files: list[str],
-    language: str
+    repo_dir: str, affected_files: list[str], language: str
 ) -> list[Finding]:
     """
     Run all static analysis tools.
@@ -455,9 +430,7 @@ def run_static_analysis(
 
 
 def run_dynamic_analysis(
-    repo_dir: str,
-    proposal: FixProposal,
-    timeout: int = 300
+    repo_dir: str, proposal: FixProposal, timeout: int = 300
 ) -> DynamicScanResult:
     """
     Run dynamic analysis (fuzz testing) on patched code.
@@ -476,26 +449,25 @@ def run_dynamic_analysis(
             ["git", "apply"],
             input=proposal.suggested_patch.encode(),
             cwd=repo_dir,
-            check=True
+            check=True,
         )
     except subprocess.CalledProcessError as e:
-        return DynamicScanResult(
-            passed=False,
-            error=f"Failed to apply patch: {e}"
-        )
+        return DynamicScanResult(passed=False, error=f"Failed to apply patch: {e}")
 
     try:
         # Detect test framework
         repo_path = Path(repo_dir)
         start_time = datetime.utcnow()
 
-        if (repo_path / "pytest.ini").exists() or (repo_path / "pyproject.toml").exists():
+        if (repo_path / "pytest.ini").exists() or (
+            repo_path / "pyproject.toml"
+        ).exists():
             # Run pytest
             result = subprocess.run(
                 ["pytest", "-x", "--timeout", str(timeout // 2)],
                 cwd=repo_dir,
                 capture_output=True,
-                timeout=timeout
+                timeout=timeout,
             )
         else:
             # Basic Python syntax check
@@ -503,7 +475,7 @@ def run_dynamic_analysis(
                 ["python", "-m", "py_compile"] + proposal.affected_files,
                 cwd=repo_dir,
                 capture_output=True,
-                timeout=60
+                timeout=60,
             )
 
         duration = (datetime.utcnow() - start_time).total_seconds()
@@ -512,28 +484,18 @@ def run_dynamic_analysis(
             passed=result.returncode == 0,
             stdout=result.stdout.decode()[-5000:],
             stderr=result.stderr.decode()[-5000:],
-            execution_time=duration
+            execution_time=duration,
         )
 
     except subprocess.TimeoutExpired:
-        return DynamicScanResult(
-            passed=False,
-            error="Timeout during dynamic analysis"
-        )
+        return DynamicScanResult(passed=False, error="Timeout during dynamic analysis")
 
     except Exception as e:
-        return DynamicScanResult(
-            passed=False,
-            error=str(e)
-        )
+        return DynamicScanResult(passed=False, error=str(e))
 
     finally:
         # Revert patch
-        subprocess.run(
-            ["git", "checkout", "."],
-            cwd=repo_dir,
-            capture_output=True
-        )
+        subprocess.run(["git", "checkout", "."], cwd=repo_dir, capture_output=True)
 
 
 def generate_recommendation(report: SecurityReport) -> str:
@@ -571,9 +533,7 @@ def generate_recommendation(report: SecurityReport) -> str:
 
 
 async def audit_fix(
-    proposal: FixProposal,
-    repo_dir: str,
-    language: str
+    proposal: FixProposal, repo_dir: str, language: str
 ) -> SecurityReport:
     """
     Complete security audit of a fix proposal.
@@ -596,7 +556,7 @@ async def audit_fix(
             ["git", "apply"],
             input=proposal.suggested_patch.encode(),
             cwd=repo_dir,
-            check=True
+            check=True,
         )
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to apply patch for audit: {e}")
@@ -605,7 +565,7 @@ async def audit_fix(
             has_vulnerabilities=True,
             risk_score=1.0,
             findings=[],
-            recommendation="reject"
+            recommendation="reject",
         )
 
     try:
@@ -630,7 +590,9 @@ async def audit_fix(
             findings_by_severity[severity] = findings_by_severity.get(severity, 0) + 1
 
         # Identify critical findings
-        critical_findings = [f for f in findings if assess_severity(f) in ("critical", "high")]
+        critical_findings = [
+            f for f in findings if assess_severity(f) in ("critical", "high")
+        ]
 
         duration = (datetime.utcnow() - start_time).total_seconds()
 
@@ -644,7 +606,7 @@ async def audit_fix(
             critical_findings=critical_findings,
             scanners_used=scanners_used,
             dynamic_scan_passed=dynamic_result.passed if dynamic_result else None,
-            scan_duration=duration
+            scan_duration=duration,
         )
 
         report.recommendation = generate_recommendation(report)
@@ -653,8 +615,4 @@ async def audit_fix(
 
     finally:
         # Revert patch
-        subprocess.run(
-            ["git", "checkout", "."],
-            cwd=repo_dir,
-            capture_output=True
-        )
+        subprocess.run(["git", "checkout", "."], cwd=repo_dir, capture_output=True)

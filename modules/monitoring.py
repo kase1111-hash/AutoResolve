@@ -60,7 +60,9 @@ def should_process(issue: dict, filter_config: Optional[FilterConfig] = None) ->
 
     # Check minimum content
     if len(body) < filter_config.min_body_length:
-        logger.debug(f"Issue body too short: {len(body)} < {filter_config.min_body_length}")
+        logger.debug(
+            f"Issue body too short: {len(body)} < {filter_config.min_body_length}"
+        )
         return False
 
     # Check age
@@ -142,7 +144,7 @@ def enqueue_issue(issue: QueuedIssue) -> None:
             author=issue.author,
             github_created_at=issue.created_at,
             priority=issue.priority,
-            status="pending"
+            status="pending",
         )
         db.add(db_issue)
         db.commit()
@@ -153,7 +155,9 @@ def enqueue_issue(issue: QueuedIssue) -> None:
         # from tasks.processing import process_issue
         # process_issue.delay(db_issue.id)
 
-        logger.info(f"Enqueued issue {issue.repo_full_name}#{issue.issue_id} (ID: {db_issue.id})")
+        logger.info(
+            f"Enqueued issue {issue.repo_full_name}#{issue.issue_id} (ID: {db_issue.id})"
+        )
 
     except Exception as e:
         logger.error(f"Failed to enqueue issue: {e}")
@@ -183,7 +187,9 @@ def compute_priority(issue: dict, priority_labels: dict[str, int]) -> int:
     return 3  # Default priority
 
 
-def poll_repositories(repos: list[str], since_minutes: int = 10) -> list[QueuedIssue]:
+async def poll_repositories(
+    repos: list[str], since_minutes: int = 10
+) -> list[QueuedIssue]:
     """
     Poll repositories for new issues.
 
@@ -204,38 +210,47 @@ def poll_repositories(repos: list[str], since_minutes: int = 10) -> list[QueuedI
 
     since = datetime.utcnow() - timedelta(minutes=since_minutes)
 
-    for repo_full_name in repos:
-        try:
-            issues = github.get_issues(
-                repo=repo_full_name,
-                state="open",
-                since=since,
-                sort="updated",
-                direction="desc"
-            )
+    try:
+        for repo_full_name in repos:
+            try:
+                issues = await github.get_issues(
+                    repo=repo_full_name,
+                    state="open",
+                    since=since,
+                    sort="updated",
+                    direction="desc",
+                )
 
-            for issue in issues:
-                if should_process(issue, settings.filtering) and not is_already_queued(
-                    repo_full_name, issue.get("number", 0)
-                ):
-                    queued_issue = QueuedIssue(
-                        issue_id=issue.get("number", 0),
-                        repo_url=f"https://github.com/{repo_full_name}",
-                        repo_full_name=repo_full_name,
-                        title=issue.get("title", ""),
-                        body=issue.get("body", ""),
-                        labels=[l.get("name", "") for l in issue.get("labels", [])],
-                        author=issue.get("user", {}).get("login", ""),
-                        created_at=datetime.fromisoformat(
-                            issue.get("created_at", "").replace("Z", "+00:00")
-                        ) if issue.get("created_at") else datetime.utcnow(),
-                        priority=compute_priority(issue, settings.monitoring.priority_labels)
-                    )
-                    enqueue_issue(queued_issue)
-                    queued.append(queued_issue)
+                for issue in issues:
+                    if should_process(
+                        issue, settings.filtering
+                    ) and not is_already_queued(repo_full_name, issue.get("number", 0)):
+                        queued_issue = QueuedIssue(
+                            issue_id=issue.get("number", 0),
+                            repo_url=f"https://github.com/{repo_full_name}",
+                            repo_full_name=repo_full_name,
+                            title=issue.get("title", ""),
+                            body=issue.get("body", ""),
+                            labels=[l.get("name", "") for l in issue.get("labels", [])],
+                            author=issue.get("user", {}).get("login", ""),
+                            created_at=(
+                                datetime.fromisoformat(
+                                    issue.get("created_at", "").replace("Z", "+00:00")
+                                )
+                                if issue.get("created_at")
+                                else datetime.utcnow()
+                            ),
+                            priority=compute_priority(
+                                issue, settings.monitoring.priority_labels
+                            ),
+                        )
+                        enqueue_issue(queued_issue)
+                        queued.append(queued_issue)
 
-        except Exception as e:
-            logger.error(f"Error polling repository {repo_full_name}: {e}")
+            except Exception as e:
+                logger.error(f"Error polling repository {repo_full_name}: {e}")
+    finally:
+        await github.close()
 
     logger.info(f"Polling complete: {len(queued)} new issues queued")
     return queued
@@ -251,7 +266,7 @@ def get_queue_stats() -> dict:
         return {
             "pending": pending,
             "processing": processing,
-            "total": pending + processing
+            "total": pending + processing,
         }
     except Exception as e:
         logger.error(f"Error getting queue stats: {e}")

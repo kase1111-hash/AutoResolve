@@ -2,12 +2,12 @@
 Tests for the fix generation module.
 """
 
+from models.schemas import ParsedDiff
 from modules.fix_generator import (
+    count_diff_lines,
     extract_diff,
     validate_diff_syntax,
-    count_diff_lines,
 )
-from models.schemas import ParsedDiff
 
 
 class TestExtractDiff:
@@ -33,7 +33,7 @@ This should fix the issue.
 
         assert diff is not None
         assert "--- a/test.py" in diff
-        assert "+    return \"fixed\"" in diff
+        assert '+    return "fixed"' in diff
 
     def test_extracts_from_plain_block(self):
         """Should extract diff from plain code block."""
