@@ -450,8 +450,18 @@ def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Write original content
-        file_full_path = os.path.join(tmpdir, os.path.basename(file_path))
+        # Sanitize file path to prevent path traversal attacks
+        # Extract just the filename, removing any directory components
+        safe_filename = os.path.basename(file_path.replace("..", "").lstrip("/\\"))
+        if not safe_filename:
+            safe_filename = "patched_file"
+
+        # Ensure the path stays within tmpdir
+        file_full_path = os.path.join(tmpdir, safe_filename)
+        resolved_path = os.path.realpath(file_full_path)
+        if not resolved_path.startswith(os.path.realpath(tmpdir)):
+            raise ValueError(f"Invalid file path: {file_path}")
+
         with open(file_full_path, "w") as f:
             f.write(content)
 

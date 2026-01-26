@@ -26,6 +26,48 @@ from models.schemas import (
 
 logger = logging.getLogger(__name__)
 
+# Approximate token limits for different models
+MODEL_CONTEXT_LIMITS = {
+    "gpt-4": 8192,
+    "gpt-4-turbo": 128000,
+    "gpt-3.5-turbo": 4096,
+    "claude-3-opus": 200000,
+    "claude-3-sonnet": 200000,
+    "default": 8000,
+}
+
+# Approximate chars per token (conservative estimate)
+CHARS_PER_TOKEN = 4
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimate the number of tokens in a text string."""
+    return len(text) // CHARS_PER_TOKEN
+
+
+def truncate_for_context(text: str, max_tokens: int, preserve_end: bool = False) -> str:
+    """
+    Truncate text to fit within token limit.
+
+    Args:
+        text: Text to truncate
+        max_tokens: Maximum allowed tokens
+        preserve_end: If True, preserve the end of the text instead of the beginning
+
+    Returns:
+        Truncated text
+    """
+    max_chars = max_tokens * CHARS_PER_TOKEN
+    if len(text) <= max_chars:
+        return text
+
+    if preserve_end:
+        truncated = "... [truncated] ...\n" + text[-max_chars:]
+    else:
+        truncated = text[:max_chars] + "\n... [truncated] ..."
+
+    return truncated
+
 # Fix generation prompt template
 FIX_PROMPT_TEMPLATE = """You are an expert software engineer fixing a bug. Generate a minimal, focused patch.
 
@@ -109,6 +151,16 @@ def build_fix_prompt(
     Returns:
         Formatted prompt string
     """
+    settings = get_settings()
+
+    # Get model context limit
+    model_name = settings.fix_generation.llm_model.lower()
+    context_limit = MODEL_CONTEXT_LIMITS.get(model_name, MODEL_CONTEXT_LIMITS["default"])
+
+    # Reserve tokens for output and prompt template
+    reserved_tokens = settings.fix_generation.llm_max_tokens + 1000
+    available_tokens = context_limit - reserved_tokens
+
     # Get the first affected function or file content
     if context.functions:
         func = context.functions[0]
@@ -121,16 +173,30 @@ def build_fix_prompt(
         file_path = "unknown"
         function_source = "[No code context available]"
 
+    # Truncate large content to fit within context window
+    # Allocate tokens: 40% for function source, 30% for stack trace, 30% for issue body
+    max_function_tokens = int(available_tokens * 0.4)
+    max_trace_tokens = int(available_tokens * 0.3)
+    max_body_tokens = int(available_tokens * 0.3)
+
+    function_source = truncate_for_context(function_source, max_function_tokens)
+    stack_trace = truncate_for_context(
+        validation.issue_context.stack_trace or "Not available",
+        max_trace_tokens,
+        preserve_end=True,  # Preserve the end of stack traces (most relevant)
+    )
+    issue_body = truncate_for_context(issue.body, max_body_tokens)
+
     prompt = FIX_PROMPT_TEMPLATE.format(
         repo_full_name=issue.repo_full_name,
         error_type=validation.issue_context.error_type or "Unknown",
         error_message=validation.issue_context.error_message or "",
         error_signature=context.error_signature or "",
-        stack_trace=validation.issue_context.stack_trace or "Not available",
+        stack_trace=stack_trace,
         file_path=file_path,
         language=context.language,
         function_source=function_source,
-        issue_body=issue.body,
+        issue_body=issue_body,
         expected_behavior=validation.issue_context.expected_behavior or "Not specified",
         actual_behavior=validation.issue_context.actual_behavior or "See error above",
     )

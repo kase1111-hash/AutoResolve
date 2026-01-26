@@ -28,6 +28,51 @@ from models.schemas import (
 
 logger = logging.getLogger(__name__)
 
+# Patterns that may indicate prompt injection attempts
+PROMPT_INJECTION_PATTERNS = [
+    r"\[SYSTEM[:\s]",
+    r"\[INST[:\s]",
+    r"<<SYS>>",
+    r"<\|im_start\|>",
+    r"<\|im_end\|>",
+    r"Human:",
+    r"Assistant:",
+    r"###\s*Instruction",
+    r"###\s*Response",
+    r"Ignore\s+(all\s+)?(previous|above)\s+instructions",
+    r"Disregard\s+(all\s+)?(previous|above)",
+]
+
+
+def sanitize_user_input(text: str) -> str:
+    """
+    Sanitize user input to mitigate prompt injection risks.
+
+    Args:
+        text: Raw user input text
+
+    Returns:
+        Sanitized text with potential injection patterns escaped
+    """
+    if not text:
+        return text
+
+    sanitized = text
+
+    # Escape special characters that could be interpreted as prompt delimiters
+    for pattern in PROMPT_INJECTION_PATTERNS:
+        sanitized = re.sub(
+            pattern,
+            lambda m: f"[ESCAPED: {m.group(0)}]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+
+    # Limit excessive whitespace that could be used to hide injections
+    sanitized = re.sub(r"\n{5,}", "\n\n\n\n", sanitized)
+
+    return sanitized
+
 # Sandbox images by language
 SANDBOX_IMAGES = {
     "python": {
@@ -66,6 +111,10 @@ async def parse_issue(title: str, body: str) -> IssueContext:
     """
     settings = get_settings()
 
+    # Sanitize inputs to mitigate prompt injection risks
+    safe_title = sanitize_user_input(title)
+    safe_body = sanitize_user_input(body)
+
     # Try LLM parsing first
     try:
         from services.llm_service import LLMService
@@ -74,9 +123,9 @@ async def parse_issue(title: str, body: str) -> IssueContext:
 
         prompt = f"""You are a bug report parser. Extract structured information from this GitHub issue.
 
-Issue Title: {title}
+Issue Title: {safe_title}
 Issue Body:
-{body}
+{safe_body}
 
 Extract the following (respond in JSON only):
 {{

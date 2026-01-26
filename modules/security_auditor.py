@@ -96,6 +96,8 @@ def run_bandit(repo_dir: str, affected_files: list[str]) -> list[Finding]:
 
     except subprocess.TimeoutExpired:
         logger.warning("Bandit scan timed out")
+    except FileNotFoundError:
+        logger.warning("Bandit not installed, skipping scan")
     except Exception as e:
         logger.error(f"Bandit scan failed: {e}")
 
