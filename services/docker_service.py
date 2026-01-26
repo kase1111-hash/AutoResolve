@@ -5,6 +5,7 @@ Handles sandbox container execution for issue reproduction.
 """
 
 import logging
+import shlex
 import time
 
 from app.config import get_settings
@@ -61,9 +62,11 @@ class DockerService:
         """
         client = self._get_client()
 
-        # Prepare the command
-        combined_command = " && ".join(commands)
-        full_command = f'/bin/sh -c "{combined_command}"'
+        # Prepare the command with proper shell escaping to prevent injection
+        escaped_commands = [shlex.quote(cmd) for cmd in commands]
+        # Use shlex.join for proper command construction
+        combined_command = " && ".join(f"eval {cmd}" for cmd in escaped_commands)
+        full_command = ["/bin/sh", "-c", combined_command]
 
         start_time = time.time()
 

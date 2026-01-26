@@ -5,6 +5,7 @@ Handles GitHub webhook reception, issue filtering, and queue management.
 """
 
 import logging
+import threading
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -17,14 +18,23 @@ logger = logging.getLogger(__name__)
 
 # Redis client for deduplication and queue management
 _redis_client: Optional[redis.Redis] = None
+_redis_lock = threading.Lock()
 
 
 def get_redis_client() -> redis.Redis:
-    """Get Redis client instance."""
+    """Get Redis client instance (thread-safe)."""
     global _redis_client
     if _redis_client is None:
-        settings = get_settings()
-        _redis_client = redis.from_url(settings.redis.url)
+        with _redis_lock:
+            # Double-check pattern to avoid race conditions
+            if _redis_client is None:
+                settings = get_settings()
+                _redis_client = redis.from_url(
+                    settings.redis.url,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=5,
+                )
     return _redis_client
 
 
@@ -160,10 +170,20 @@ def enqueue_issue(issue: QueuedIssue) -> None:
         db.commit()
         db.refresh(db_issue)
 
-        # Dispatch to Celery
-        # TODO: Enable when Celery tasks are implemented
-        # from tasks.processing import process_issue
-        # process_issue.delay(db_issue.id)
+        # Dispatch to Celery for background processing
+        try:
+            from tasks.processing import process_issue
+
+            process_issue.delay(db_issue.id)
+            logger.info(
+                f"Dispatched issue {issue.repo_full_name}#{issue.issue_id} to Celery (ID: {db_issue.id})"
+            )
+        except ImportError:
+            logger.warning(
+                "Celery tasks not available, issue queued but not dispatched"
+            )
+        except Exception as e:
+            logger.error(f"Failed to dispatch issue to Celery: {e}")
 
         logger.info(
             f"Enqueued issue {issue.repo_full_name}#{issue.issue_id} (ID: {db_issue.id})"

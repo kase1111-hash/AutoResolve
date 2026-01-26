@@ -141,9 +141,15 @@ async def health_check():
 @app.get("/api/stats")
 async def get_stats():
     """Get system statistics."""
-    from sqlalchemy import func
+    from sqlalchemy import extract, func
 
-    from models.database import FixProposal, Issue, SecurityReport, get_session_factory
+    from models.database import (
+        Approval,
+        FixProposal,
+        Issue,
+        SecurityReport,
+        get_session_factory,
+    )
 
     SessionLocal = get_session_factory()
     db = SessionLocal()
@@ -174,13 +180,33 @@ async def get_stats():
             .scalar()
         )
 
+        # Calculate average fix time (from issue queued to PR merged)
+        average_fix_time = 0.0
+        merged_approvals = (
+            db.query(Issue.queued_at, Approval.resolved_at)
+            .join(FixProposal, Issue.id == FixProposal.issue_id)
+            .join(Approval, FixProposal.id == Approval.proposal_id)
+            .filter(Approval.status == "approved")
+            .filter(Approval.pr_merged.is_(True))
+            .filter(Approval.resolved_at.isnot(None))
+            .all()
+        )
+
+        if merged_approvals:
+            total_seconds = sum(
+                (approval.resolved_at - issue.queued_at).total_seconds()
+                for issue, approval in merged_approvals
+                if approval.resolved_at and issue.queued_at
+            )
+            average_fix_time = total_seconds / len(merged_approvals)
+
         return {
             "total_issues_processed": sum(issues_by_status.values()),
             "issues_by_status": issues_by_status,
             "total_proposals": total_proposals,
             "proposals_approved": proposals_approved,
             "proposals_rejected": proposals_rejected,
-            "average_fix_time_seconds": 0.0,  # TODO: Calculate from timestamps
+            "average_fix_time_seconds": round(average_fix_time, 2),
             "security_findings_blocked": security_blocked,
         }
     finally:
