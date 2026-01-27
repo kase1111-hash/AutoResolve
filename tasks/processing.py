@@ -7,7 +7,7 @@ Handles the main issue processing pipeline.
 import asyncio
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from celery import shared_task
@@ -51,7 +51,7 @@ def _create_queued_issue(issue: Issue) -> QueuedIssue:
         body=issue.body or "",
         labels=issue.labels or [],
         author=issue.author or "",
-        created_at=issue.github_created_at or datetime.utcnow(),
+        created_at=issue.github_created_at or datetime.now(timezone.utc),
         priority=issue.priority,
     )
 
@@ -306,7 +306,7 @@ def create_pr(self, proposal_id: int, approved_by: str, auto_merge: bool = True)
             db_approval.pr_number = pr_result.pr_number
             db_approval.pr_url = pr_result.pr_url
             db_approval.pr_merged = pr_result.status == "merged"
-            db_approval.resolved_at = datetime.utcnow()
+            db_approval.resolved_at = datetime.now(timezone.utc)
 
         proposal.status = "approved"
         issue.status = "resolved" if pr_result.status == "merged" else "pr_created"

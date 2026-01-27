@@ -4,8 +4,13 @@ Approval Module for AutoResolve.
 Handles PR creation, approval workflow, and maintainer notifications.
 """
 
+import asyncio
 import logging
-from datetime import datetime, timedelta
+import os
+import re
+import subprocess
+import tempfile
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -145,7 +150,7 @@ async def post_proposal_comment(
     # Format comment
     lines_changed = proposal.lines_added + proposal.lines_removed
     expiry_date = (
-        datetime.utcnow() + timedelta(days=settings.approval.timeout_days)
+        datetime.now(timezone.utc) + timedelta(days=settings.approval.timeout_days)
     ).strftime("%Y-%m-%d")
 
     comment_body = APPROVAL_COMMENT_TEMPLATE.format(
@@ -196,80 +201,105 @@ async def poll_for_approval(
 
     github = GitHubService()
 
-    # Get comments since proposal was posted
-    comments = await github.get_issue_comments(
-        repo=repo_full_name, issue_number=issue_number, since=proposal.generated_at
-    )
-
-    # Get reactions on issue
-    reactions = await github.get_issue_reactions(
-        repo=repo_full_name, issue_number=issue_number
-    )
-
-    # Check for approval commands in comments
-    for comment in comments:
-        author = comment.get("user", {}).get("login", "")
-
-        # Only accept from maintainers
-        if not await github.is_maintainer(repo_full_name, author):
-            continue
-
-        text = comment.get("body", "").lower()
-
-        if "@autoresolve approve" in text:
-            no_merge = "--no-merge" in text
-            return ApprovalResult(
-                status="approved",
-                approved_by=author,
-                auto_merge=not no_merge,
-                resolved_at=datetime.utcnow(),
+    try:
+        # Get comments since proposal was posted
+        try:
+            comments = await github.get_issue_comments(
+                repo=repo_full_name, issue_number=issue_number, since=proposal.generated_at
             )
+        except Exception as e:
+            logger.error(f"Failed to get issue comments for {repo_full_name}#{issue_number}: {e}")
+            comments = []
 
-        if "@autoresolve reject" in text:
-            reason = _extract_reason(comment.get("body", ""))
-            return ApprovalResult(
-                status="rejected",
-                rejected_by=author,
-                rejection_reason=reason,
-                resolved_at=datetime.utcnow(),
+        # Get reactions on issue
+        try:
+            reactions = await github.get_issue_reactions(
+                repo=repo_full_name, issue_number=issue_number
             )
+        except Exception as e:
+            logger.error(f"Failed to get issue reactions for {repo_full_name}#{issue_number}: {e}")
+            reactions = []
 
-        if "@autoresolve regenerate" in text:
-            feedback = _extract_feedback(comment.get("body", ""))
-            return ApprovalResult(status="regenerate", feedback=feedback)
+        # Check for approval commands in comments
+        for comment in comments:
+            author = comment.get("user", {}).get("login", "")
 
-    # Check reactions from maintainers
-    for reaction in reactions:
-        user = reaction.get("user", {}).get("login", "")
-        content = reaction.get("content", "")
+            # Only accept from maintainers
+            try:
+                is_maintainer = await github.is_maintainer(repo_full_name, author)
+            except Exception as e:
+                logger.warning(f"Failed to check maintainer status for {author}: {e}")
+                continue
 
-        if await github.is_maintainer(repo_full_name, user):
-            if content == "+1":
+            if not is_maintainer:
+                continue
+
+            text = comment.get("body", "").lower()
+
+            if "@autoresolve approve" in text:
+                no_merge = "--no-merge" in text
                 return ApprovalResult(
                     status="approved",
-                    approved_by=user,
-                    auto_merge=True,
-                    resolved_at=datetime.utcnow(),
+                    approved_by=author,
+                    auto_merge=not no_merge,
+                    resolved_at=datetime.now(timezone.utc),
                 )
-            if content == "-1":
+
+            if "@autoresolve reject" in text:
+                reason = _extract_reason(comment.get("body", ""))
                 return ApprovalResult(
-                    status="rejected", rejected_by=user, resolved_at=datetime.utcnow()
+                    status="rejected",
+                    rejected_by=author,
+                    rejection_reason=reason,
+                    resolved_at=datetime.now(timezone.utc),
                 )
 
-    # Check expiry
-    if datetime.utcnow() > proposal.generated_at + timedelta(
-        days=settings.approval.timeout_days
-    ):
-        return ApprovalResult(status="expired")
+            if "@autoresolve regenerate" in text:
+                feedback = _extract_feedback(comment.get("body", ""))
+                return ApprovalResult(status="regenerate", feedback=feedback)
 
-    return ApprovalResult(status="pending")
+        # Check reactions from maintainers
+        for reaction in reactions:
+            user = reaction.get("user", {}).get("login", "")
+            content = reaction.get("content", "")
+
+            try:
+                is_maintainer = await github.is_maintainer(repo_full_name, user)
+            except Exception as e:
+                logger.warning(f"Failed to check maintainer status for {user}: {e}")
+                continue
+
+            if is_maintainer:
+                if content == "+1":
+                    return ApprovalResult(
+                        status="approved",
+                        approved_by=user,
+                        auto_merge=True,
+                        resolved_at=datetime.now(timezone.utc),
+                    )
+                if content == "-1":
+                    return ApprovalResult(
+                        status="rejected", rejected_by=user, resolved_at=datetime.now(timezone.utc)
+                    )
+
+        # Check expiry - handle both naive and aware datetimes
+        now = datetime.now(timezone.utc)
+        proposal_time = proposal.generated_at
+        if proposal_time.tzinfo is None:
+            proposal_time = proposal_time.replace(tzinfo=timezone.utc)
+
+        if now > proposal_time + timedelta(days=settings.approval.timeout_days):
+            return ApprovalResult(status="expired")
+
+        return ApprovalResult(status="pending")
+
+    finally:
+        await github.close()
 
 
 def _extract_reason(text: str) -> Optional[str]:
     """Extract rejection reason from comment."""
     # Look for text after "reject" command
-    import re
-
     match = re.search(
         r"@autoresolve\s+reject\s*[:\-]?\s*(.+)", text, re.IGNORECASE | re.DOTALL
     )
@@ -285,8 +315,6 @@ def _extract_reason(text: str) -> Optional[str]:
 
 def _extract_feedback(text: str) -> Optional[str]:
     """Extract regeneration feedback from comment."""
-    import re
-
     match = re.search(
         r"@autoresolve\s+regenerate\s*[:\-]?\s*(.+)", text, re.IGNORECASE | re.DOTALL
     )
@@ -364,7 +392,7 @@ async def create_pull_request(
         medium=0,
         low=0,
         approved_by=approval.approved_by or "system",
-        approved_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        approved_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         version=settings.app.version,
     )
 
@@ -395,7 +423,8 @@ async def create_pull_request(
             # Wait for checks if configured
             if settings.approval.auto_merge_wait_for_checks:
                 checks_passed = await _wait_for_checks(
-                    github, repo, pr_number, timeout=300
+                    github, repo, pr_number,
+                    timeout=settings.approval.ci_checks_timeout_seconds
                 )
                 if not checks_passed:
                     await github.create_pr_comment(
@@ -428,7 +457,7 @@ async def create_pull_request(
                 branch_name=branch_name,
                 status="merged",
                 checks_passed=True,
-                merged_at=datetime.utcnow(),
+                merged_at=datetime.now(timezone.utc),
                 merged_by="autoresolve",
             )
 
@@ -445,10 +474,6 @@ async def create_pull_request(
 
 def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
     """Apply a unified diff to file content."""
-    import os
-    import subprocess
-    import tempfile
-
     with tempfile.TemporaryDirectory() as tmpdir:
         # Sanitize file path to prevent path traversal attacks
         # Extract just the filename, removing any directory components
@@ -491,8 +516,6 @@ async def _wait_for_checks(
     github, repo: str, pr_number: int, timeout: int = 300
 ) -> bool:
     """Wait for CI checks to complete."""
-    import asyncio
-
     elapsed = 0
     interval = 15
 

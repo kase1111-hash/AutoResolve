@@ -62,10 +62,10 @@ class DockerService:
         """
         client = self._get_client()
 
-        # Prepare the command with proper shell escaping to prevent injection
-        escaped_commands = [shlex.quote(cmd) for cmd in commands]
-        # Use shlex.join for proper command construction
-        combined_command = " && ".join(f"eval {cmd}" for cmd in escaped_commands)
+        # Build command string - commands are joined with && for sequential execution
+        # Note: Commands should be pre-validated before reaching this point
+        # The sandbox provides isolation (no network, limited memory/CPU)
+        combined_command = " && ".join(commands)
         full_command = ["/bin/sh", "-c", combined_command]
 
         start_time = time.time()
@@ -82,6 +82,7 @@ class DockerService:
                 cpu_quota=50000,  # 50% of one CPU
                 detach=True,
                 remove=False,
+                labels={"autoresolve": "sandbox"},
             )
 
             # Wait for completion with timeout

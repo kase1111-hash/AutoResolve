@@ -62,6 +62,8 @@ class GitHubSettings(BaseSettings):
     webhook_secret: str = Field(default="")
     api_base_url: str = "https://api.github.com"
     rate_limit_buffer: int = 100
+    api_timeout_seconds: float = 30.0
+    api_max_retries: int = 3
 
 
 class FilterConfig(BaseSettings):
@@ -104,6 +106,7 @@ class MonitoringConfig(BaseSettings):
     max_queue_size: int = 1000
     priority_labels: dict[str, int] = {"critical": 1, "high-priority": 2, "bug": 3}
     rate_limit_buffer: int = 100
+    webhook_rate_limit_per_minute: int = 120
 
 
 class ValidationConfig(BaseSettings):
@@ -172,6 +175,7 @@ class ApprovalConfig(BaseSettings):
     branch_prefix: str = "autoresolve/fix-"
     pr_labels: list[str] = ["automated", "autoresolve"]
     close_issue_on_merge: bool = True
+    ci_checks_timeout_seconds: int = 300
 
 
 class NotificationConfig(BaseSettings):
@@ -195,9 +199,8 @@ class DatabaseConfig(BaseSettings):
 
     model_config = {"extra": "ignore"}
 
-    url: str = Field(
-        default="postgresql://autoresolve:password@localhost:5432/autoresolve"
-    )
+    # No default credentials - must be set via environment or config
+    url: str = Field(default="")
     pool_size: int = 10
 
 
@@ -206,7 +209,8 @@ class RedisConfig(BaseSettings):
 
     model_config = {"extra": "ignore"}
 
-    url: str = Field(default="redis://localhost:6379/0")
+    # No default - must be set via environment or config
+    url: str = Field(default="")
 
 
 class CeleryConfig(BaseSettings):
@@ -214,8 +218,9 @@ class CeleryConfig(BaseSettings):
 
     model_config = {"extra": "ignore"}
 
-    broker_url: str = Field(default="amqp://guest:guest@localhost:5672//")
-    result_backend: str = Field(default="redis://localhost:6379/1")
+    # No default credentials - must be set via environment or config
+    broker_url: str = Field(default="")
+    result_backend: str = Field(default="")
 
 
 class APIConfig(BaseSettings):
@@ -372,3 +377,77 @@ def reload_settings(config_path: str = "config.yaml") -> Settings:
     global _settings
     _settings = Settings.from_yaml(config_path)
     return _settings
+
+
+class ConfigurationError(Exception):
+    """Raised when required configuration is missing."""
+
+    pass
+
+
+def validate_settings(settings: Settings) -> list[str]:
+    """
+    Validate that all required settings are configured.
+
+    Args:
+        settings: The settings instance to validate
+
+    Returns:
+        List of validation error messages (empty if valid)
+    """
+    errors = []
+
+    # Required settings for production deployment
+    if not settings.database.url:
+        errors.append(
+            "DATABASE_URL is required. Set via environment variable or config.yaml "
+            "(database.url). Example: postgresql://user:pass@host:5432/dbname"
+        )
+
+    if not settings.redis.url:
+        errors.append(
+            "REDIS_URL is required. Set via environment variable or config.yaml "
+            "(redis.url). Example: redis://localhost:6379/0"
+        )
+
+    if not settings.celery.broker_url:
+        errors.append(
+            "CELERY_BROKER_URL is required. Set via environment variable or config.yaml "
+            "(celery.broker_url). Example: amqp://user:pass@host:5672//"
+        )
+
+    if not settings.github.webhook_secret:
+        errors.append(
+            "GITHUB_WEBHOOK_SECRET is required for security. Set via environment "
+            "variable or config.yaml (github.webhook_secret)"
+        )
+
+    # Warnings (not errors) for recommended settings
+    if not settings.app.secret_key:
+        errors.append(
+            "WARNING: APP_SECRET_KEY is recommended. Set via environment variable "
+            "or config.yaml (app.secret_key)"
+        )
+
+    return errors
+
+
+def validate_settings_or_raise(settings: Settings) -> None:
+    """
+    Validate settings and raise ConfigurationError if invalid.
+
+    Args:
+        settings: The settings instance to validate
+
+    Raises:
+        ConfigurationError: If required settings are missing
+    """
+    errors = validate_settings(settings)
+    # Filter out warnings (they start with "WARNING:")
+    critical_errors = [e for e in errors if not e.startswith("WARNING:")]
+
+    if critical_errors:
+        error_msg = "Configuration validation failed:\n" + "\n".join(
+            f"  - {e}" for e in critical_errors
+        )
+        raise ConfigurationError(error_msg)

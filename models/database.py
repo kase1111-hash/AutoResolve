@@ -4,9 +4,14 @@ SQLAlchemy database models for AutoResolve.
 Based on the database schema defined in the specification.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
+
+
+def utc_now() -> datetime:
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 from sqlalchemy import (
     Boolean,
@@ -57,7 +62,7 @@ class Issue(Base):
         DateTime(timezone=True), nullable=True
     )
     queued_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utc_now
     )
     priority: Mapped[int] = mapped_column(Integer, default=3)
     status: Mapped[str] = mapped_column(String(50), default="pending")
@@ -101,7 +106,7 @@ class Validation(Base):
     code_context: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     sandbox_image: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     validated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utc_now
     )
     validation_duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
@@ -134,7 +139,7 @@ class FixProposal(Base):
     llm_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     generation_attempts: Mapped[int] = mapped_column(Integer, default=1)
     generated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utc_now
     )
     status: Mapped[str] = mapped_column(String(50), default="pending_audit")
 
@@ -175,7 +180,7 @@ class SecurityReport(Base):
     dynamic_scan_passed: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     recommendation: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     scanned_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utc_now
     )
     scan_duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
@@ -209,7 +214,7 @@ class Approval(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utc_now
     )
 
     # Relationships
@@ -230,7 +235,7 @@ class AuditLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utc_now
     )
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
@@ -258,7 +263,7 @@ class MonitoredRepo(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     settings: Mapped[dict] = mapped_column(JSONB, default=dict)
     added_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=utc_now
     )
     last_polled_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
