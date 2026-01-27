@@ -142,41 +142,57 @@ def enqueue_issue(issue: QueuedIssue) -> None:
     Add an issue to the processing queue.
 
     Marks the issue as queued and dispatches to Celery task queue.
+    Uses proper transaction management with context managers.
     """
     # Mark as queued for deduplication
     mark_as_queued(issue.repo_full_name, issue.issue_id)
 
-    # Save to database
+    # Save to database with proper transaction management
+    from contextlib import contextmanager
+
     from models.database import Issue, get_session_factory
 
     SessionLocal = get_session_factory()
-    db = SessionLocal()
+
+    @contextmanager
+    def get_db_session():
+        """Context manager for database session with automatic cleanup."""
+        session = SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     try:
-        db_issue = Issue(
-            queue_id=issue.queue_id,
-            github_issue_id=issue.issue_id,
-            repo_full_name=issue.repo_full_name,
-            repo_url=issue.repo_url,
-            title=issue.title,
-            body=issue.body,
-            labels=issue.labels,
-            author=issue.author,
-            github_created_at=issue.created_at,
-            priority=issue.priority,
-            status="pending",
-        )
-        db.add(db_issue)
-        db.commit()
-        db.refresh(db_issue)
+        with get_db_session() as db:
+            db_issue = Issue(
+                queue_id=issue.queue_id,
+                github_issue_id=issue.issue_id,
+                repo_full_name=issue.repo_full_name,
+                repo_url=issue.repo_url,
+                title=issue.title,
+                body=issue.body,
+                labels=issue.labels,
+                author=issue.author,
+                github_created_at=issue.created_at,
+                priority=issue.priority,
+                status="pending",
+            )
+            db.add(db_issue)
+            db.flush()  # Flush to get the ID before commit
+            issue_db_id = db_issue.id
 
-        # Dispatch to Celery for background processing
+        # Dispatch to Celery for background processing (outside transaction)
         try:
             from tasks.processing import process_issue
 
-            process_issue.delay(db_issue.id)
+            process_issue.delay(issue_db_id)
             logger.info(
-                f"Dispatched issue {issue.repo_full_name}#{issue.issue_id} to Celery (ID: {db_issue.id})"
+                f"Dispatched issue {issue.repo_full_name}#{issue.issue_id} to Celery (ID: {issue_db_id})"
             )
         except ImportError:
             logger.warning(
@@ -186,15 +202,12 @@ def enqueue_issue(issue: QueuedIssue) -> None:
             logger.error(f"Failed to dispatch issue to Celery: {e}")
 
         logger.info(
-            f"Enqueued issue {issue.repo_full_name}#{issue.issue_id} (ID: {db_issue.id})"
+            f"Enqueued issue {issue.repo_full_name}#{issue.issue_id} (ID: {issue_db_id})"
         )
 
     except Exception as e:
         logger.error(f"Failed to enqueue issue: {e}")
-        db.rollback()
         raise
-    finally:
-        db.close()
 
 
 def compute_priority(issue: dict, priority_labels: dict[str, int]) -> int:

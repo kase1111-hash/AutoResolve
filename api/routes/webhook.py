@@ -7,14 +7,55 @@ import hmac
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
+from api.middleware.auth import RateLimiter
 from app.config import get_settings
 from models.schemas import QueuedIssue
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Webhook-specific rate limiter (more permissive than API)
+_webhook_rate_limiter: Optional[RateLimiter] = None
+
+
+def get_webhook_rate_limiter() -> RateLimiter:
+    """Get or create webhook rate limiter."""
+    global _webhook_rate_limiter
+    if _webhook_rate_limiter is None:
+        settings = get_settings()
+        _webhook_rate_limiter = RateLimiter(
+            redis_url=settings.redis.url,
+            requests_per_minute=settings.monitoring.webhook_rate_limit_per_minute,
+        )
+    return _webhook_rate_limiter
+
+
+async def check_webhook_rate_limit(request: Request) -> None:
+    """
+    Rate limit dependency for webhook endpoint.
+
+    Raises HTTPException 429 if rate limit exceeded.
+    """
+    settings = get_settings()
+
+    # Skip rate limiting if Redis not configured (development mode)
+    if not settings.redis.url:
+        return
+
+    # Use client IP as identifier
+    client_ip = request.client.host if request.client else "unknown"
+
+    limiter = get_webhook_rate_limiter()
+    if not await limiter.check_rate_limit(f"webhook:{client_ip}"):
+        logger.warning(f"Webhook rate limit exceeded for IP: {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please slow down webhook delivery.",
+            headers={"Retry-After": "60"},
+        )
 
 
 def verify_signature(payload_body: bytes, signature_header: str, secret: str) -> bool:
@@ -42,11 +83,13 @@ async def handle_github_webhook(
     request: Request,
     x_hub_signature_256: Optional[str] = Header(None),
     x_github_event: Optional[str] = Header(None),
+    _: None = Depends(check_webhook_rate_limit),
 ):
     """
     Handle incoming GitHub webhooks.
 
     Validates signature, filters events, and enqueues issues for processing.
+    Rate limited per IP (configurable via monitoring.webhook_rate_limit_per_minute).
     """
     settings = get_settings()
     body = await request.body()

@@ -419,6 +419,49 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
                         details=result.stderr.decode(),
                     )
 
+            elif language == "go":
+                # Use gofmt to check Go syntax
+                result = subprocess.run(
+                    ["gofmt", "-e", str(file_path)],
+                    capture_output=True,
+                    timeout=30,
+                )
+                if result.returncode != 0:
+                    return FixValidation(
+                        valid=False,
+                        error="Syntax error in patched Go code",
+                        details=result.stderr.decode(),
+                    )
+
+            elif language == "rust":
+                # Use rustfmt --check for Rust syntax validation
+                result = subprocess.run(
+                    ["rustfmt", "--check", str(file_path)],
+                    capture_output=True,
+                    timeout=30,
+                )
+                # rustfmt returns non-zero if formatting differs, check stderr for errors
+                if result.stderr and b"error" in result.stderr.lower():
+                    return FixValidation(
+                        valid=False,
+                        error="Syntax error in patched Rust code",
+                        details=result.stderr.decode(),
+                    )
+
+            elif language == "java":
+                # Use javac to check Java syntax without generating class files
+                result = subprocess.run(
+                    ["javac", "-Xlint:all", "-d", "/tmp", str(file_path)],
+                    capture_output=True,
+                    timeout=60,
+                )
+                if result.returncode != 0:
+                    return FixValidation(
+                        valid=False,
+                        error="Syntax error in patched Java code",
+                        details=result.stderr.decode(),
+                    )
+
         return FixValidation(valid=True, parsed_diff=parsed)
 
     except subprocess.CalledProcessError as e:
