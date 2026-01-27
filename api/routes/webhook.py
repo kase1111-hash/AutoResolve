@@ -51,13 +51,20 @@ async def handle_github_webhook(
     settings = get_settings()
     body = await request.body()
 
-    # Verify webhook signature
-    if settings.github.webhook_secret:
-        if not verify_signature(
-            body, x_hub_signature_256 or "", settings.github.webhook_secret
-        ):
-            logger.warning("Invalid webhook signature received")
-            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    # Verify webhook signature - REQUIRED for security
+    # Fail closed: if no secret configured, reject all requests
+    if not settings.github.webhook_secret:
+        logger.error("Webhook secret not configured - rejecting request")
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook signature verification not configured",
+        )
+
+    if not verify_signature(
+        body, x_hub_signature_256 or "", settings.github.webhook_secret
+    ):
+        logger.warning("Invalid webhook signature received")
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     # Parse payload
     try:
@@ -96,7 +103,7 @@ async def handle_github_webhook(
         return {"status": "duplicate", "reason": "issue already in queue"}
 
     # Create queued issue
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     queued_issue = QueuedIssue(
         issue_id=issue_number,
@@ -109,7 +116,7 @@ async def handle_github_webhook(
         created_at=(
             datetime.fromisoformat(issue.get("created_at", "").replace("Z", "+00:00"))
             if issue.get("created_at")
-            else datetime.utcnow()
+            else datetime.now(timezone.utc)
         ),
     )
 

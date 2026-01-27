@@ -4,6 +4,7 @@ GitHub Service for AutoResolve.
 Handles all GitHub API interactions.
 """
 
+import asyncio
 import base64
 import logging
 from datetime import datetime
@@ -25,23 +26,27 @@ class GitHubService:
         self.base_url = self.settings.github.api_base_url
         self._token: Optional[str] = None
         self._client: Optional[httpx.AsyncClient] = None
+        self._client_lock = asyncio.Lock()
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client."""
+        """Get or create HTTP client (thread-safe)."""
         if self._client is None:
-            headers = {
-                "Accept": "application/vnd.github.v3+json",
-                "User-Agent": "AutoResolve/1.0",
-            }
+            async with self._client_lock:
+                # Double-check pattern to avoid race conditions
+                if self._client is None:
+                    headers = {
+                        "Accept": "application/vnd.github.v3+json",
+                        "User-Agent": "AutoResolve/1.0",
+                    }
 
-            # Add authentication if available
-            token = await self._get_token()
-            if token:
-                headers["Authorization"] = f"token {token}"
+                    # Add authentication if available
+                    token = await self._get_token()
+                    if token:
+                        headers["Authorization"] = f"token {token}"
 
-            self._client = httpx.AsyncClient(
-                base_url=self.base_url, headers=headers, timeout=30.0
-            )
+                    self._client = httpx.AsyncClient(
+                        base_url=self.base_url, headers=headers, timeout=30.0
+                    )
 
         return self._client
 

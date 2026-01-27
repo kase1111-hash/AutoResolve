@@ -6,7 +6,7 @@ Handles GitHub webhook reception, issue filtering, and queue management.
 
 import logging
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import redis
@@ -238,7 +238,7 @@ async def poll_repositories(
     github = GitHubService()
     queued = []
 
-    since = datetime.utcnow() - timedelta(minutes=since_minutes)
+    since = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
 
     try:
         for repo_full_name in repos:
@@ -268,7 +268,7 @@ async def poll_repositories(
                                     issue.get("created_at", "").replace("Z", "+00:00")
                                 )
                                 if issue.get("created_at")
-                                else datetime.utcnow()
+                                else datetime.now(timezone.utc)
                             ),
                             priority=compute_priority(
                                 issue, settings.monitoring.priority_labels

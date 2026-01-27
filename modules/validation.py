@@ -11,7 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -101,6 +101,100 @@ DEFAULT_TEST_COMMANDS = {
     "rust": ["cargo test 2>&1"],
     "java": ["mvn test 2>&1 || gradle test 2>&1"],
 }
+
+# Allowed command prefixes for user-provided reproduction steps
+# Only these commands are considered safe to run from user input
+ALLOWED_COMMAND_PREFIXES = {
+    "python", "python3", "pip", "pip3", "pytest", "unittest",
+    "node", "npm", "npx", "yarn",
+    "go", "cargo", "rustc",
+    "mvn", "gradle", "java", "javac",
+    "make", "cmake",
+    "cat", "echo", "ls", "pwd", "cd", "mkdir",
+    "export", "env",
+}
+
+# Dangerous patterns that should never be in user-provided commands
+DANGEROUS_PATTERNS = [
+    r"\brm\s+-rf\b",
+    r"\bsudo\b",
+    r"\bchmod\b.*777",
+    r"\bcurl\b.*\|.*\bsh\b",
+    r"\bwget\b.*\|.*\bsh\b",
+    r"\beval\b",
+    r"\bexec\b",
+    r"`.*`",  # Backtick command substitution
+    r"\$\(.*\)",  # $() command substitution
+    r"\b/etc/passwd\b",
+    r"\b/etc/shadow\b",
+    r">\s*/dev/",
+    r"\bdd\s+if=",
+    r"\bmkfs\b",
+    r"\breboot\b",
+    r"\bshutdown\b",
+]
+
+
+def sanitize_reproduction_command(command: str) -> Optional[str]:
+    """
+    Sanitize a user-provided reproduction command.
+
+    Args:
+        command: Raw command from issue content
+
+    Returns:
+        Sanitized command if safe, None if dangerous
+    """
+    if not command or not command.strip():
+        return None
+
+    command = command.strip()
+
+    # Check for dangerous patterns
+    for pattern in DANGEROUS_PATTERNS:
+        if re.search(pattern, command, re.IGNORECASE):
+            logger.warning(f"Dangerous pattern detected in command: {pattern}")
+            return None
+
+    # Extract the first word (command name)
+    parts = command.split()
+    if not parts:
+        return None
+
+    cmd_name = parts[0].split("/")[-1]  # Handle paths like /usr/bin/python
+
+    # Check if command starts with an allowed prefix
+    if cmd_name.lower() not in ALLOWED_COMMAND_PREFIXES:
+        logger.warning(f"Command not in allowed list: {cmd_name}")
+        return None
+
+    # Limit command length to prevent abuse
+    if len(command) > 500:
+        logger.warning("Command too long, truncating")
+        return None
+
+    return command
+
+
+def sanitize_reproduction_steps(steps: list[str]) -> list[str]:
+    """
+    Sanitize a list of reproduction steps.
+
+    Args:
+        steps: List of commands from issue parsing
+
+    Returns:
+        List of safe commands, filtering out dangerous ones
+    """
+    safe_commands = []
+    for step in steps:
+        sanitized = sanitize_reproduction_command(step)
+        if sanitized:
+            safe_commands.append(sanitized)
+        else:
+            logger.info(f"Filtered out unsafe reproduction step: {step[:50]}...")
+
+    return safe_commands
 
 
 async def parse_issue(title: str, body: str) -> IssueContext:
@@ -353,8 +447,15 @@ def reproduce_issue(
     sandbox_image = get_sandbox_image(language)
 
     # Build reproduction commands
+    # User-provided steps must be sanitized for safety
     if context.reproduction_steps:
-        commands = context.reproduction_steps
+        sanitized_steps = sanitize_reproduction_steps(context.reproduction_steps)
+        if sanitized_steps:
+            commands = sanitized_steps
+        else:
+            # Fall back to default if all user steps were filtered
+            logger.info("All user reproduction steps filtered, using defaults")
+            commands = DEFAULT_TEST_COMMANDS.get(language, DEFAULT_TEST_COMMANDS["python"])
     else:
         commands = DEFAULT_TEST_COMMANDS.get(language, DEFAULT_TEST_COMMANDS["python"])
 
@@ -702,7 +803,7 @@ async def validate_issue(issue: QueuedIssue) -> ValidationResult:
         Complete validation result
     """
     settings = get_settings()
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
 
     # Parse issue
     context = await parse_issue(issue.title, issue.body)
@@ -722,7 +823,7 @@ async def validate_issue(issue: QueuedIssue) -> ValidationResult:
         if reproduction.valid or reproduction.validity_status == "partial":
             code_context = extract_context(repo_dir, context, reproduction)
 
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         return ValidationResult(
             issue_id=issue.issue_id,
