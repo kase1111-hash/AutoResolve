@@ -8,7 +8,7 @@ import json
 import logging
 import re
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -453,7 +453,7 @@ def run_dynamic_analysis(
     try:
         # Detect test framework
         repo_path = Path(repo_dir)
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         if (repo_path / "pytest.ini").exists() or (
             repo_path / "pyproject.toml"
@@ -474,7 +474,7 @@ def run_dynamic_analysis(
                 timeout=60,
             )
 
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         return DynamicScanResult(
             passed=result.returncode == 0,
@@ -543,7 +543,7 @@ async def audit_fix(
         Complete security report
     """
     settings = get_settings()
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     scanners_used = []
 
     # Apply patch temporarily
@@ -590,7 +590,7 @@ async def audit_fix(
             f for f in findings if assess_severity(f) in ("critical", "high")
         ]
 
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         report = SecurityReport(
             proposal_id=proposal.proposal_id,

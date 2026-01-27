@@ -5,7 +5,7 @@ Handles approval polling and repository polling.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from celery import shared_task
 
@@ -104,7 +104,7 @@ def poll_approval(proposal_id: int):
                 db_approval.status = "rejected"
                 db_approval.rejected_by = result.rejected_by
                 db_approval.rejection_reason = result.rejection_reason
-                db_approval.resolved_at = datetime.utcnow()
+                db_approval.resolved_at = datetime.now(timezone.utc)
 
             proposal.status = "rejected"
             issue.status = "rejected"
@@ -126,7 +126,7 @@ def poll_approval(proposal_id: int):
             )
             if db_approval:
                 db_approval.status = "expired"
-                db_approval.resolved_at = datetime.utcnow()
+                db_approval.resolved_at = datetime.now(timezone.utc)
 
             proposal.status = "expired"
             issue.status = "expired"
@@ -192,7 +192,7 @@ def poll_repositories():
 
         # Update last_polled_at
         for repo in repos:
-            repo.last_polled_at = datetime.utcnow()
+            repo.last_polled_at = datetime.now(timezone.utc)
         db.commit()
 
         if queued:
@@ -231,7 +231,7 @@ def cleanup_expired_proposals():
     try:
         from datetime import timedelta
 
-        cutoff = datetime.utcnow() - timedelta(days=settings.approval.timeout_days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=settings.approval.timeout_days)
 
         # Find proposals that are still pending past the cutoff
         pending_proposals = (
@@ -259,7 +259,7 @@ def cleanup_expired_proposals():
 
             if approval:
                 approval.status = "expired"
-                approval.resolved_at = datetime.utcnow()
+                approval.resolved_at = datetime.now(timezone.utc)
 
             # Update issue status
             if proposal.issue:

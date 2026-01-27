@@ -5,7 +5,7 @@ Handles Slack and email notifications for system events.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -111,7 +111,7 @@ async def send_slack_notification(
                 "title": template["title"],
                 "text": text,
                 "footer": "AutoResolve",
-                "ts": int(datetime.utcnow().timestamp()),
+                "ts": int(datetime.now(timezone.utc).timestamp()),
             }
         ],
     }
