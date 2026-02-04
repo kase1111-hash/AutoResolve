@@ -5,12 +5,16 @@ Handles sandbox container execution for issue reproduction.
 """
 
 import logging
-import shlex
 import time
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Container label for identifying AutoResolve sandbox containers
+SANDBOX_LABEL_KEY = "autoresolve"
+SANDBOX_LABEL_VALUE = "sandbox"
+SANDBOX_LABEL = f"{SANDBOX_LABEL_KEY}={SANDBOX_LABEL_VALUE}"
 
 
 class DockerService:
@@ -82,7 +86,7 @@ class DockerService:
                 cpu_quota=50000,  # 50% of one CPU
                 detach=True,
                 remove=False,
-                labels={"autoresolve": "sandbox"},
+                labels={SANDBOX_LABEL_KEY: SANDBOX_LABEL_VALUE},
             )
 
             # Wait for completion with timeout
@@ -153,12 +157,12 @@ class DockerService:
             logger.error(f"Failed to pull image {image}: {e}")
             return False
 
-    def cleanup_containers(self, label: str = "autoresolve") -> int:
+    def cleanup_containers(self, label: str = SANDBOX_LABEL) -> int:
         """
         Clean up orphaned containers.
 
         Args:
-            label: Label to filter containers
+            label: Label filter for containers (format: "key=value" or "key")
 
         Returns:
             Number of containers removed
@@ -167,7 +171,7 @@ class DockerService:
         removed = 0
 
         try:
-            containers = client.containers.list(all=True, filters={"label": label})
+            containers = client.containers.list(all=True, filters={"label": [label]})
 
             for container in containers:
                 try:

@@ -165,14 +165,13 @@ async def post_proposal_comment(
         version=settings.app.version,
     )
 
-    # Post comment via GitHub API
+    # Post comment via GitHub API with proper resource cleanup
     from services.github_service import GitHubService
 
-    github = GitHubService()
-
-    comment_id = await github.create_issue_comment(
-        repo=repo_full_name, issue_number=issue_number, body=comment_body
-    )
+    async with GitHubService() as github:
+        comment_id = await github.create_issue_comment(
+            repo=repo_full_name, issue_number=issue_number, body=comment_body
+        )
 
     logger.info(
         f"Posted proposal comment to {repo_full_name}#{issue_number}: {comment_id}"
@@ -196,29 +195,51 @@ async def poll_for_approval(
         Approval result
     """
     settings = get_settings()
+    max_retries = 3
 
     from services.github_service import GitHubService
 
-    github = GitHubService()
+    async with GitHubService() as github:
+        # Get comments since proposal was posted with retry logic
+        comments = []
+        for attempt in range(max_retries):
+            try:
+                comments = await github.get_issue_comments(
+                    repo=repo_full_name, issue_number=issue_number, since=proposal.generated_at
+                )
+                break
+            except Exception as e:
+                logger.warning(
+                    f"Failed to get issue comments (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    logger.error(
+                        f"All retries exhausted getting comments for {repo_full_name}#{issue_number}"
+                    )
+                    # Return pending status to retry on next poll cycle
+                    return ApprovalResult(status="pending")
 
-    try:
-        # Get comments since proposal was posted
-        try:
-            comments = await github.get_issue_comments(
-                repo=repo_full_name, issue_number=issue_number, since=proposal.generated_at
-            )
-        except Exception as e:
-            logger.error(f"Failed to get issue comments for {repo_full_name}#{issue_number}: {e}")
-            comments = []
-
-        # Get reactions on issue
-        try:
-            reactions = await github.get_issue_reactions(
-                repo=repo_full_name, issue_number=issue_number
-            )
-        except Exception as e:
-            logger.error(f"Failed to get issue reactions for {repo_full_name}#{issue_number}: {e}")
-            reactions = []
+        # Get reactions on issue with retry logic
+        reactions = []
+        for attempt in range(max_retries):
+            try:
+                reactions = await github.get_issue_reactions(
+                    repo=repo_full_name, issue_number=issue_number
+                )
+                break
+            except Exception as e:
+                logger.warning(
+                    f"Failed to get issue reactions (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    logger.error(
+                        f"All retries exhausted getting reactions for {repo_full_name}#{issue_number}"
+                    )
+                    # Continue without reactions - comments already retrieved
 
         # Check for approval commands in comments
         for comment in comments:
@@ -293,9 +314,6 @@ async def poll_for_approval(
 
         return ApprovalResult(status="pending")
 
-    finally:
-        await github.close()
-
 
 def _extract_reason(text: str) -> Optional[str]:
     """Extract rejection reason from comment."""
@@ -345,131 +363,131 @@ async def create_pull_request(
 
     from services.github_service import GitHubService
 
-    github = GitHubService()
+    # Use async context manager for proper resource cleanup
+    async with GitHubService() as github:
+        repo = proposal.repo_full_name
+        base_branch = await github.get_default_branch(repo)
 
-    repo = proposal.repo_full_name
-    base_branch = await github.get_default_branch(repo)
+        # Create branch
+        short_id = str(uuid4())[:8]
+        branch_name = f"{settings.approval.branch_prefix}{proposal.issue_id}-{short_id}"
 
-    # Create branch
-    short_id = str(uuid4())[:8]
-    branch_name = f"{settings.approval.branch_prefix}{proposal.issue_id}-{short_id}"
+        await github.create_branch(repo=repo, branch=branch_name, from_ref=base_branch)
 
-    await github.create_branch(repo=repo, branch=branch_name, from_ref=base_branch)
-
-    # Apply patch via commits
-    for file_diff in proposal.parsed_diff.files if proposal.parsed_diff else []:
-        try:
-            current_content = await github.get_file_contents(
-                repo, file_diff.path, base_branch
-            )
-            new_content = _apply_diff_to_content(
-                current_content, proposal.suggested_patch, file_diff.path
-            )
-
-            await github.update_file(
-                repo=repo,
-                path=file_diff.path,
-                content=new_content,
-                branch=branch_name,
-                message=f"fix: resolve issue #{proposal.issue_id}\n\nAutomated fix by AutoResolve",
-            )
-        except Exception as e:
-            logger.error(f"Failed to update file {file_diff.path}: {e}")
-            raise
-
-    # Create PR
-    pr_title = f"fix: {issue_title} (#{proposal.issue_id})"
-    pr_body = PR_BODY_TEMPLATE.format(
-        issue_number=proposal.issue_id,
-        issue_title=issue_title,
-        diff_summary=f"Changed {len(proposal.affected_files)} file(s), +{proposal.lines_added}/-{proposal.lines_removed} lines",
-        reproduction_status="Confirmed",
-        patch_status="Passed",
-        syntax_status="Passed",
-        security_status="Passed",
-        critical=0,
-        high=0,
-        medium=0,
-        low=0,
-        approved_by=approval.approved_by or "system",
-        approved_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        version=settings.app.version,
-    )
-
-    pr = await github.create_pull_request(
-        repo=repo,
-        title=pr_title,
-        body=pr_body,
-        head=branch_name,
-        base=base_branch,
-        labels=settings.approval.pr_labels,
-    )
-
-    pr_number = pr.get("number", 0)
-    pr_url = pr.get("html_url", "")
-
-    # Post link comment on issue
-    await github.create_issue_comment(
-        repo=repo,
-        issue_number=proposal.issue_id,
-        body=f"Pull request created: #{pr_number}",
-    )
-
-    logger.info(f"Created PR #{pr_number} for issue #{proposal.issue_id}")
-
-    # Auto-merge if requested and allowed
-    if approval.auto_merge and settings.approval.auto_merge_enabled:
-        try:
-            # Wait for checks if configured
-            if settings.approval.auto_merge_wait_for_checks:
-                checks_passed = await _wait_for_checks(
-                    github, repo, pr_number,
-                    timeout=settings.approval.ci_checks_timeout_seconds
+        # Apply patch via commits
+        for file_diff in proposal.parsed_diff.files if proposal.parsed_diff else []:
+            try:
+                current_content = await github.get_file_contents(
+                    repo, file_diff.path, base_branch
                 )
-                if not checks_passed:
-                    await github.create_pr_comment(
-                        repo=repo,
-                        pr_number=pr_number,
-                        body="Auto-merge skipped: CI checks failed",
+                new_content = _apply_diff_to_content(
+                    current_content, proposal.suggested_patch, file_diff.path
+                )
+
+                await github.update_file(
+                    repo=repo,
+                    path=file_diff.path,
+                    content=new_content,
+                    branch=branch_name,
+                    message=f"fix: resolve issue #{proposal.issue_id}\n\nAutomated fix by AutoResolve",
+                )
+            except Exception as e:
+                logger.error(f"Failed to update file {file_diff.path}: {e}")
+                raise
+
+        # Create PR
+        pr_title = f"fix: {issue_title} (#{proposal.issue_id})"
+        pr_body = PR_BODY_TEMPLATE.format(
+            issue_number=proposal.issue_id,
+            issue_title=issue_title,
+            diff_summary=f"Changed {len(proposal.affected_files)} file(s), +{proposal.lines_added}/-{proposal.lines_removed} lines",
+            reproduction_status="Confirmed",
+            patch_status="Passed",
+            syntax_status="Passed",
+            security_status="Passed",
+            critical=0,
+            high=0,
+            medium=0,
+            low=0,
+            approved_by=approval.approved_by or "system",
+            approved_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+            version=settings.app.version,
+        )
+
+        pr = await github.create_pull_request(
+            repo=repo,
+            title=pr_title,
+            body=pr_body,
+            head=branch_name,
+            base=base_branch,
+            labels=settings.approval.pr_labels,
+        )
+
+        pr_number = pr.get("number", 0)
+        pr_url = pr.get("html_url", "")
+
+        # Post link comment on issue
+        await github.create_issue_comment(
+            repo=repo,
+            issue_number=proposal.issue_id,
+            body=f"Pull request created: #{pr_number}",
+        )
+
+        logger.info(f"Created PR #{pr_number} for issue #{proposal.issue_id}")
+
+        # Auto-merge if requested and allowed
+        if approval.auto_merge and settings.approval.auto_merge_enabled:
+            try:
+                # Wait for checks if configured
+                if settings.approval.auto_merge_wait_for_checks:
+                    checks_passed = await _wait_for_checks(
+                        github, repo, pr_number,
+                        timeout=settings.approval.ci_checks_timeout_seconds
                     )
-                    return PullRequestResult(
-                        pr_number=pr_number,
-                        pr_url=pr_url,
-                        branch_name=branch_name,
-                        status="open",
-                        checks_passed=False,
-                    )
+                    if not checks_passed:
+                        await github.create_pr_comment(
+                            repo=repo,
+                            pr_number=pr_number,
+                            body="Auto-merge skipped: CI checks failed",
+                        )
+                        return PullRequestResult(
+                            pr_number=pr_number,
+                            pr_url=pr_url,
+                            branch_name=branch_name,
+                            status="open",
+                            checks_passed=False,
+                        )
 
-            # Merge the PR
-            await github.merge_pull_request(
-                repo=repo,
-                pr_number=pr_number,
-                merge_method=settings.approval.auto_merge_method,
-            )
+                # Merge the PR
+                await github.merge_pull_request(
+                    repo=repo,
+                    pr_number=pr_number,
+                    merge_method=settings.approval.auto_merge_method,
+                )
 
-            # Close the issue
-            if settings.approval.close_issue_on_merge:
-                await github.close_issue(repo, proposal.issue_id)
+                # Close the issue
+                if settings.approval.close_issue_on_merge:
+                    await github.close_issue(repo, proposal.issue_id)
 
-            return PullRequestResult(
-                pr_number=pr_number,
-                pr_url=pr_url,
-                branch_name=branch_name,
-                status="merged",
-                checks_passed=True,
-                merged_at=datetime.now(timezone.utc),
-                merged_by="autoresolve",
-            )
+                return PullRequestResult(
+                    pr_number=pr_number,
+                    pr_url=pr_url,
+                    branch_name=branch_name,
+                    status="merged",
+                    checks_passed=True,
+                    merged_at=datetime.now(timezone.utc),
+                    merged_by="autoresolve",
+                )
 
-        except Exception as e:
-            logger.error(f"Auto-merge failed: {e}")
-            await github.create_pr_comment(
-                repo=repo, pr_number=pr_number, body=f"Auto-merge failed: {e}"
-            )
+            except Exception as e:
+                logger.error(f"Auto-merge failed: {e}")
+                await github.create_pr_comment(
+                    repo=repo, pr_number=pr_number, body=f"Auto-merge failed: {e}"
+                )
 
-    return PullRequestResult(
-        pr_number=pr_number, pr_url=pr_url, branch_name=branch_name, status="open"
-    )
+        return PullRequestResult(
+            pr_number=pr_number, pr_url=pr_url, branch_name=branch_name, status="open"
+        )
 
 
 def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
@@ -562,7 +580,6 @@ async def handle_rejection(proposal: FixProposal, approval: ApprovalResult) -> N
 
         if db_proposal:
             db_proposal.status = "rejected"
-            db.commit()
 
         # Log rejection
         log = AuditLog(
@@ -576,11 +593,18 @@ async def handle_rejection(proposal: FixProposal, approval: ApprovalResult) -> N
             },
         )
         db.add(log)
+
+        # Single commit for both operations (atomic transaction)
         db.commit()
 
         logger.info(
             f"Proposal {proposal.proposal_id} rejected by {approval.rejected_by}"
         )
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to handle rejection for {proposal.proposal_id}: {e}")
+        raise
 
     finally:
         db.close()
@@ -597,15 +621,15 @@ async def handle_expiry(proposal: FixProposal) -> None:
 
     from services.github_service import GitHubService
 
-    github = GitHubService()
-
-    # Post expiry notice
-    await github.create_issue_comment(
-        repo=proposal.repo_full_name,
-        issue_number=proposal.issue_id,
-        body=f"The fix proposal has expired after {settings.approval.timeout_days} days without a response. "
-        f"If you would like to receive a new proposal, please reopen this issue or add the 'bug' label.",
-    )
+    # Use async context manager for proper resource cleanup
+    async with GitHubService() as github:
+        # Post expiry notice
+        await github.create_issue_comment(
+            repo=proposal.repo_full_name,
+            issue_number=proposal.issue_id,
+            body=f"The fix proposal has expired after {settings.approval.timeout_days} days without a response. "
+            f"If you would like to receive a new proposal, please reopen this issue or add the 'bug' label.",
+        )
 
     # Update database
     from models.database import FixProposal as DBFixProposal
@@ -625,10 +649,15 @@ async def handle_expiry(proposal: FixProposal) -> None:
             db_proposal.status = "expired"
             db.commit()
 
+        logger.info(f"Proposal {proposal.proposal_id} expired")
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to handle expiry for {proposal.proposal_id}: {e}")
+        raise
+
     finally:
         db.close()
-
-    logger.info(f"Proposal {proposal.proposal_id} expired")
 
 
 async def notify_stakeholders(

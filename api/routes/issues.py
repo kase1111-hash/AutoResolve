@@ -5,9 +5,10 @@ Issue management API routes for AutoResolve.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
+from api.middleware.auth import check_api_rate_limit
 from app.config import get_settings
 from app.dependencies import get_db
 from models.database import Approval, FixProposal, Issue, Validation
@@ -28,12 +29,14 @@ def verify_api_key(x_api_key: Optional[str] = Header(None)):
 
 @router.get("/issues", response_model=list[IssueResponse])
 async def list_issues(
+    request: Request,
     status: Optional[str] = Query(None, description="Filter by status"),
     repo: Optional[str] = Query(None, description="Filter by repository"),
     limit: int = Query(50, le=100, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Session = Depends(get_db),
     _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """List processed issues with optional filtering."""
     query = db.query(Issue)
@@ -107,7 +110,11 @@ async def list_issues(
 
 @router.get("/issues/{issue_id}", response_model=IssueResponse)
 async def get_issue(
-    issue_id: int, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
+    request: Request,
+    issue_id: int,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Get details for a specific issue."""
     issue = db.query(Issue).filter(Issue.id == issue_id).first()
@@ -186,7 +193,11 @@ async def get_issue(
 
 @router.post("/issues/{issue_id}/retry")
 async def retry_issue(
-    issue_id: int, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
+    request: Request,
+    issue_id: int,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Retry processing a failed issue."""
     issue = db.query(Issue).filter(Issue.id == issue_id).first()
@@ -214,7 +225,11 @@ async def retry_issue(
 
 @router.get("/issues/{issue_id}/timeline")
 async def get_issue_timeline(
-    issue_id: int, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
+    request: Request,
+    issue_id: int,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Get the processing timeline for an issue."""
     from models.database import AuditLog

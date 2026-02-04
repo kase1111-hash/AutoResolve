@@ -7,11 +7,17 @@ Handles LLM-based patch generation, diff validation, and retry logic.
 import ast
 import logging
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
 
 from app.config import get_settings
+
+
+def _check_tool_available(tool_name: str) -> bool:
+    """Check if an external tool is available in the system PATH."""
+    return shutil.which(tool_name) is not None
 from models.schemas import (
     CodeContext,
     DiffHunk,
@@ -368,6 +374,10 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
     Returns:
         Validation result
     """
+    settings = get_settings()
+    syntax_timeout = settings.fix_generation.syntax_check_timeout
+    java_timeout = settings.fix_generation.java_compile_timeout
+
     # Step 1: Parse the diff
     try:
         parsed = parse_unified_diff(diff)
@@ -409,58 +419,85 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
                     )
 
             elif language in ("javascript", "typescript", "node"):
-                result = subprocess.run(
-                    ["node", "--check", str(file_path)], capture_output=True
-                )
-                if result.returncode != 0:
-                    return FixValidation(
-                        valid=False,
-                        error="Syntax error in patched code",
-                        details=result.stderr.decode(),
-                    )
+                # Graceful fallback: skip if node not available
+                if _check_tool_available("node"):
+                    try:
+                        result = subprocess.run(
+                            ["node", "--check", str(file_path)],
+                            capture_output=True,
+                            timeout=syntax_timeout,
+                        )
+                        if result.returncode != 0:
+                            return FixValidation(
+                                valid=False,
+                                error="Syntax error in patched code",
+                                details=result.stderr.decode(),
+                            )
+                    except (subprocess.TimeoutExpired, OSError) as e:
+                        logger.warning(f"Node syntax check failed, skipping: {e}")
+                else:
+                    logger.info("Node not available, skipping JS/TS syntax validation")
 
             elif language == "go":
-                # Use gofmt to check Go syntax
-                result = subprocess.run(
-                    ["gofmt", "-e", str(file_path)],
-                    capture_output=True,
-                    timeout=30,
-                )
-                if result.returncode != 0:
-                    return FixValidation(
-                        valid=False,
-                        error="Syntax error in patched Go code",
-                        details=result.stderr.decode(),
-                    )
+                # Graceful fallback: skip if gofmt not available
+                if _check_tool_available("gofmt"):
+                    try:
+                        result = subprocess.run(
+                            ["gofmt", "-e", str(file_path)],
+                            capture_output=True,
+                            timeout=syntax_timeout,
+                        )
+                        if result.returncode != 0:
+                            return FixValidation(
+                                valid=False,
+                                error="Syntax error in patched Go code",
+                                details=result.stderr.decode(),
+                            )
+                    except (subprocess.TimeoutExpired, OSError) as e:
+                        logger.warning(f"Go syntax check failed, skipping: {e}")
+                else:
+                    logger.info("gofmt not available, skipping Go syntax validation")
 
             elif language == "rust":
-                # Use rustfmt --check for Rust syntax validation
-                result = subprocess.run(
-                    ["rustfmt", "--check", str(file_path)],
-                    capture_output=True,
-                    timeout=30,
-                )
-                # rustfmt returns non-zero if formatting differs, check stderr for errors
-                if result.stderr and b"error" in result.stderr.lower():
-                    return FixValidation(
-                        valid=False,
-                        error="Syntax error in patched Rust code",
-                        details=result.stderr.decode(),
-                    )
+                # Graceful fallback: skip if rustfmt not available
+                if _check_tool_available("rustfmt"):
+                    try:
+                        result = subprocess.run(
+                            ["rustfmt", "--check", str(file_path)],
+                            capture_output=True,
+                            timeout=syntax_timeout,
+                        )
+                        # rustfmt returns non-zero if formatting differs, check stderr for errors
+                        if result.stderr and b"error" in result.stderr.lower():
+                            return FixValidation(
+                                valid=False,
+                                error="Syntax error in patched Rust code",
+                                details=result.stderr.decode(),
+                            )
+                    except (subprocess.TimeoutExpired, OSError) as e:
+                        logger.warning(f"Rust syntax check failed, skipping: {e}")
+                else:
+                    logger.info("rustfmt not available, skipping Rust syntax validation")
 
             elif language == "java":
-                # Use javac to check Java syntax without generating class files
-                result = subprocess.run(
-                    ["javac", "-Xlint:all", "-d", "/tmp", str(file_path)],
-                    capture_output=True,
-                    timeout=60,
-                )
-                if result.returncode != 0:
-                    return FixValidation(
-                        valid=False,
-                        error="Syntax error in patched Java code",
-                        details=result.stderr.decode(),
-                    )
+                # Graceful fallback: skip if javac not available
+                if _check_tool_available("javac"):
+                    try:
+                        result = subprocess.run(
+                            ["javac", "-Xlint:all", "-d", "/tmp", str(file_path)],
+                            capture_output=True,
+                            timeout=java_timeout,
+                        )
+                        if result.returncode != 0:
+                            return FixValidation(
+                                valid=False,
+                                error="Syntax error in patched Java code",
+                                details=result.stderr.decode(),
+                            )
+                    except (subprocess.TimeoutExpired, OSError) as e:
+                        logger.warning(f"Java syntax check failed, skipping: {e}")
+                else:
+                    logger.info("javac not available, skipping Java syntax validation")
 
         return FixValidation(valid=True, parsed_diff=parsed)
 

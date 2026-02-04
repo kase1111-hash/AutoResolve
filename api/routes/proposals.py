@@ -6,9 +6,10 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from api.middleware.auth import check_api_rate_limit
 from app.config import get_settings
 from app.dependencies import get_db
 from models.database import FixProposal, SecurityReport
@@ -29,7 +30,11 @@ def verify_api_key(x_api_key: Optional[str] = Header(None)):
 
 @router.get("/proposals/{proposal_id}", response_model=ProposalResponse)
 async def get_proposal(
-    proposal_id: UUID, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
+    request: Request,
+    proposal_id: UUID,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Get details for a specific fix proposal."""
     proposal = (
@@ -53,7 +58,11 @@ async def get_proposal(
 
 @router.get("/proposals/{proposal_id}/diff")
 async def get_proposal_diff(
-    proposal_id: UUID, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
+    request: Request,
+    proposal_id: UUID,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Get the raw diff for a fix proposal."""
     proposal = (
@@ -72,7 +81,11 @@ async def get_proposal_diff(
 
 @router.post("/proposals/{proposal_id}/retry")
 async def retry_proposal(
-    proposal_id: UUID, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
+    request: Request,
+    proposal_id: UUID,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Regenerate a fix proposal."""
     proposal = (
@@ -99,7 +112,11 @@ async def retry_proposal(
 
 @router.get("/reports/{proposal_id}")
 async def get_security_report(
-    proposal_id: UUID, db: Session = Depends(get_db), _: bool = Depends(verify_api_key)
+    request: Request,
+    proposal_id: UUID,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Get the security report for a fix proposal."""
     proposal = (

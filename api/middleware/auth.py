@@ -153,6 +153,53 @@ async def rate_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+# Global API rate limiter instance (lazily initialized)
+_api_rate_limiter: Optional[RateLimiter] = None
+
+
+def get_api_rate_limiter() -> RateLimiter:
+    """Get or create API rate limiter."""
+    global _api_rate_limiter
+    if _api_rate_limiter is None:
+        settings = get_settings()
+        # API endpoints get 60 requests per minute by default
+        _api_rate_limiter = RateLimiter(
+            redis_url=settings.redis.url,
+            requests_per_minute=60,
+        )
+    return _api_rate_limiter
+
+
+async def check_api_rate_limit(request: Request) -> None:
+    """
+    Rate limit dependency for API endpoints.
+
+    Raises HTTPException 429 if rate limit exceeded.
+    """
+    settings = get_settings()
+
+    # Skip rate limiting if Redis not configured (development mode)
+    if not settings.redis.url:
+        return
+
+    # Get identifier from API key or IP
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        identifier = f"api:{hash_api_key(api_key)[:16]}"
+    else:
+        client_ip = request.client.host if request.client else "unknown"
+        identifier = f"api:{client_ip}"
+
+    limiter = get_api_rate_limiter()
+    if not await limiter.check_rate_limit(identifier):
+        logger.warning(f"API rate limit exceeded for: {identifier}")
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Maximum 60 requests per minute.",
+            headers={"Retry-After": "60"},
+        )
+
+
 def require_maintainer(repo: str):
     """
     Dependency to require maintainer access for an endpoint.
@@ -174,16 +221,12 @@ def require_maintainer(repo: str):
         # Check if user is maintainer
         from services.github_service import GitHubService
 
-        github = GitHubService()
-
-        try:
+        async with GitHubService() as github:
             is_maintainer = await github.is_maintainer(repo, user)
             if not is_maintainer:
                 raise HTTPException(
                     status_code=403, detail="Maintainer access required"
                 )
-        finally:
-            await github.close()
 
         return user
 
