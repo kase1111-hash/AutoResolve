@@ -231,6 +231,9 @@ class APIConfig(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     api_key: str = Field(default="")
+    # CORS origins - empty list means development mode (allow all, no credentials)
+    # Set explicit origins for production (e.g., ["https://your-domain.com"])
+    cors_origins: list[str] = []
 
 
 class LoggingConfig(BaseSettings):
