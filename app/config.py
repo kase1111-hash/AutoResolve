@@ -143,6 +143,9 @@ class FixGenerationConfig(BaseSettings):
     context_lines_in_prompt: int = 50
     include_test_files: bool = False
     timeout_seconds: int = 120
+    # Syntax validation timeouts (seconds)
+    syntax_check_timeout: int = 30
+    java_compile_timeout: int = 60
 
 
 class SecurityAuditConfig(BaseSettings):

@@ -374,6 +374,10 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
     Returns:
         Validation result
     """
+    settings = get_settings()
+    syntax_timeout = settings.fix_generation.syntax_check_timeout
+    java_timeout = settings.fix_generation.java_compile_timeout
+
     # Step 1: Parse the diff
     try:
         parsed = parse_unified_diff(diff)
@@ -421,7 +425,7 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
                         result = subprocess.run(
                             ["node", "--check", str(file_path)],
                             capture_output=True,
-                            timeout=30,
+                            timeout=syntax_timeout,
                         )
                         if result.returncode != 0:
                             return FixValidation(
@@ -441,7 +445,7 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
                         result = subprocess.run(
                             ["gofmt", "-e", str(file_path)],
                             capture_output=True,
-                            timeout=30,
+                            timeout=syntax_timeout,
                         )
                         if result.returncode != 0:
                             return FixValidation(
@@ -461,7 +465,7 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
                         result = subprocess.run(
                             ["rustfmt", "--check", str(file_path)],
                             capture_output=True,
-                            timeout=30,
+                            timeout=syntax_timeout,
                         )
                         # rustfmt returns non-zero if formatting differs, check stderr for errors
                         if result.stderr and b"error" in result.stderr.lower():
@@ -482,7 +486,7 @@ def validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
                         result = subprocess.run(
                             ["javac", "-Xlint:all", "-d", "/tmp", str(file_path)],
                             capture_output=True,
-                            timeout=60,
+                            timeout=java_timeout,
                         )
                         if result.returncode != 0:
                             return FixValidation(

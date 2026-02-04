@@ -195,29 +195,51 @@ async def poll_for_approval(
         Approval result
     """
     settings = get_settings()
+    max_retries = 3
 
     from services.github_service import GitHubService
 
-    github = GitHubService()
+    async with GitHubService() as github:
+        # Get comments since proposal was posted with retry logic
+        comments = []
+        for attempt in range(max_retries):
+            try:
+                comments = await github.get_issue_comments(
+                    repo=repo_full_name, issue_number=issue_number, since=proposal.generated_at
+                )
+                break
+            except Exception as e:
+                logger.warning(
+                    f"Failed to get issue comments (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    logger.error(
+                        f"All retries exhausted getting comments for {repo_full_name}#{issue_number}"
+                    )
+                    # Return pending status to retry on next poll cycle
+                    return ApprovalResult(status="pending")
 
-    try:
-        # Get comments since proposal was posted
-        try:
-            comments = await github.get_issue_comments(
-                repo=repo_full_name, issue_number=issue_number, since=proposal.generated_at
-            )
-        except Exception as e:
-            logger.error(f"Failed to get issue comments for {repo_full_name}#{issue_number}: {e}")
-            comments = []
-
-        # Get reactions on issue
-        try:
-            reactions = await github.get_issue_reactions(
-                repo=repo_full_name, issue_number=issue_number
-            )
-        except Exception as e:
-            logger.error(f"Failed to get issue reactions for {repo_full_name}#{issue_number}: {e}")
-            reactions = []
+        # Get reactions on issue with retry logic
+        reactions = []
+        for attempt in range(max_retries):
+            try:
+                reactions = await github.get_issue_reactions(
+                    repo=repo_full_name, issue_number=issue_number
+                )
+                break
+            except Exception as e:
+                logger.warning(
+                    f"Failed to get issue reactions (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    logger.error(
+                        f"All retries exhausted getting reactions for {repo_full_name}#{issue_number}"
+                    )
+                    # Continue without reactions - comments already retrieved
 
         # Check for approval commands in comments
         for comment in comments:
@@ -291,9 +313,6 @@ async def poll_for_approval(
             return ApprovalResult(status="expired")
 
         return ApprovalResult(status="pending")
-
-    finally:
-        await github.close()
 
 
 def _extract_reason(text: str) -> Optional[str]:
