@@ -5,9 +5,10 @@ Repository management API routes for AutoResolve.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from api.middleware.auth import check_api_rate_limit
 from app.config import get_settings
 from app.dependencies import get_db
 from models.database import MonitoredRepo
@@ -27,7 +28,12 @@ def verify_api_key(x_api_key: Optional[str] = Header(None)):
 
 
 @router.get("/repos", response_model=list[RepoResponse])
-async def list_repos(db: Session = Depends(get_db), _: bool = Depends(verify_api_key)):
+async def list_repos(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
+):
     """List all monitored repositories."""
     repos = db.query(MonitoredRepo).all()
     return [
@@ -44,9 +50,11 @@ async def list_repos(db: Session = Depends(get_db), _: bool = Depends(verify_api
 
 @router.post("/repos", response_model=RepoResponse, status_code=201)
 async def add_repo(
+    request: Request,
     repo_data: RepoCreate,
     db: Session = Depends(get_db),
     _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Add a repository to be monitored."""
     # Check if already exists
@@ -85,9 +93,11 @@ async def add_repo(
 
 @router.get("/repos/{repo_full_name:path}", response_model=RepoResponse)
 async def get_repo(
+    request: Request,
     repo_full_name: str,
     db: Session = Depends(get_db),
     _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Get a specific monitored repository."""
     repo = (
@@ -110,9 +120,11 @@ async def get_repo(
 
 @router.delete("/repos/{repo_full_name:path}", status_code=204)
 async def remove_repo(
+    request: Request,
     repo_full_name: str,
     db: Session = Depends(get_db),
     _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Remove a repository from monitoring."""
     repo = (
@@ -136,9 +148,11 @@ async def remove_repo(
 
 @router.patch("/repos/{repo_full_name:path}/toggle")
 async def toggle_repo(
+    request: Request,
     repo_full_name: str,
     db: Session = Depends(get_db),
     _: bool = Depends(verify_api_key),
+    __: None = Depends(check_api_rate_limit),
 ):
     """Toggle repository monitoring on/off."""
     repo = (
