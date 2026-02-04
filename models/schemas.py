@@ -4,11 +4,16 @@ Pydantic schemas for AutoResolve.
 Defines all data transfer objects used across the application.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 # =============================================================================
 # Monitoring Module Schemas
@@ -27,7 +32,7 @@ class QueuedIssue(BaseModel):
     labels: list[str] = []
     author: str
     created_at: datetime
-    queued_at: datetime = Field(default_factory=datetime.utcnow)
+    queued_at: datetime = Field(default_factory=_utc_now)
     priority: int = 3  # 1 (high) - 5 (low)
     status: str = "pending"  # pending | processing | completed | failed
 
@@ -82,7 +87,7 @@ class ReproductionResult(BaseModel):
     error_signature: Optional[str] = None
     execution_time: float = 0.0
     sandbox_image: str = ""
-    reproduced_at: datetime = Field(default_factory=datetime.utcnow)
+    reproduced_at: datetime = Field(default_factory=_utc_now)
 
 
 class FunctionContext(BaseModel):
@@ -117,7 +122,7 @@ class ValidationResult(BaseModel):
     issue_context: IssueContext
     reproduction_result: ReproductionResult
     code_context: Optional[CodeContext] = None
-    validated_at: datetime = Field(default_factory=datetime.utcnow)
+    validated_at: datetime = Field(default_factory=_utc_now)
     validation_duration: float = 0.0
 
 
@@ -174,7 +179,7 @@ class FixProposal(BaseModel):
     lines_removed: int = 0
     llm_model: str = ""
     generation_attempts: int = 1
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=_utc_now)
     status: str = "pending_audit"  # pending_audit | audited | approved | rejected
 
 
@@ -236,7 +241,7 @@ class SecurityReport(BaseModel):
     scanners_used: list[str] = []
     dynamic_scan_passed: Optional[bool] = None
     scan_duration: float = 0.0
-    scanned_at: datetime = Field(default_factory=datetime.utcnow)
+    scanned_at: datetime = Field(default_factory=_utc_now)
     recommendation: str = "review"  # approve | review | reject
 
 
@@ -352,4 +357,4 @@ class NotificationEvent(BaseModel):
     issue_id: Optional[int] = None
     proposal_id: Optional[UUID] = None
     details: dict = {}
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=_utc_now)

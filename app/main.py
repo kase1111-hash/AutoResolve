@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from api.routes import issues, proposals, repos, webhook
 from app.config import get_settings
@@ -58,13 +59,28 @@ def create_app() -> FastAPI:
     )
 
     # Configure CORS
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # SECURITY: When allow_credentials=True, allow_origins cannot be ["*"]
+    # as this enables CSRF-like attacks. Use explicit origins in production.
+    cors_origins = settings.api.cors_origins if hasattr(settings.api, 'cors_origins') and settings.api.cors_origins else []
+
+    if cors_origins:
+        # Production: explicit origins with credentials
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "X-Hub-Signature-256", "X-GitHub-Event"],
+        )
+    else:
+        # Development fallback: allow all origins but NO credentials
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "X-Hub-Signature-256", "X-GitHub-Event"],
+        )
 
     # Include routers
     app.include_router(webhook.router, tags=["Webhook"])
@@ -98,7 +114,7 @@ async def health_check():
 
         engine = get_engine()
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
     except Exception:
         db_status = "disconnected"
 
