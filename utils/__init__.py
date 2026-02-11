@@ -2,7 +2,6 @@
 Utility modules for AutoResolve.
 
 - diff_parser: Parse and manipulate unified diffs
-- language_detector: Detect programming languages
 - signature: Cryptographic signature verification
 - logging: Structured logging utilities
 """
@@ -14,14 +13,6 @@ from utils.diff_parser import (
     get_affected_files,
     parse_unified_diff,
     validate_diff_syntax,
-)
-from utils.language_detector import (
-    detect_file_language,
-    detect_language,
-    get_file_extensions,
-    get_test_command,
-    is_code_file,
-    normalize_language,
 )
 from utils.logging import (
     LogContext,
@@ -46,13 +37,6 @@ __all__ = [
     "apply_diff_to_content",
     "validate_diff_syntax",
     "get_affected_files",
-    # language_detector
-    "detect_language",
-    "detect_file_language",
-    "normalize_language",
-    "is_code_file",
-    "get_file_extensions",
-    "get_test_command",
     # signature
     "verify_github_signature",
     "generate_webhook_secret",

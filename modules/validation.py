@@ -73,7 +73,7 @@ def sanitize_user_input(text: str) -> str:
 
     return sanitized
 
-# Sandbox images by language
+# Sandbox images (Python-only for v1)
 SANDBOX_IMAGES = {
     "python": {
         "default": "python:3.11-slim",
@@ -83,32 +83,21 @@ SANDBOX_IMAGES = {
         "3.11": "python:3.11-slim",
         "3.12": "python:3.12-slim",
     },
-    "node": {"default": "node:20-slim", "18": "node:18-slim", "20": "node:20-slim"},
-    "go": {"default": "golang:1.21-alpine"},
-    "rust": {"default": "rust:1.75-slim"},
-    "java": {"default": "eclipse-temurin:21-jdk"},
 }
 
-# Default test commands per language
+# Default test commands (Python-only for v1)
 DEFAULT_TEST_COMMANDS = {
     "python": [
         "pip install -r requirements.txt 2>/dev/null || true",
         "pip install pytest 2>/dev/null || true",
         "pytest -v --tb=short 2>&1 || python -m unittest discover 2>&1",
     ],
-    "node": ["npm install 2>/dev/null || true", "npm test 2>&1"],
-    "go": ["go test ./... 2>&1"],
-    "rust": ["cargo test 2>&1"],
-    "java": ["mvn test 2>&1 || gradle test 2>&1"],
 }
 
 # Allowed command prefixes for user-provided reproduction steps
 # Only these commands are considered safe to run from user input
 ALLOWED_COMMAND_PREFIXES = {
     "python", "python3", "pip", "pip3", "pytest", "unittest",
-    "node", "npm", "npx", "yarn",
-    "go", "cargo", "rustc",
-    "mvn", "gradle", "java", "javac",
     "make", "cmake",
     "cat", "echo", "ls", "pwd", "cd", "mkdir",
     "export", "env",
@@ -276,11 +265,9 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
     """Fallback regex-based parsing when LLM is unavailable."""
     combined = f"{title}\n{body}"
 
-    # Extract error type from common patterns
+    # Extract error type from common Python patterns
     error_patterns = [
         r"(TypeError|ValueError|AttributeError|KeyError|IndexError|RuntimeError|Exception)",
-        r"(NullPointerException|IndexOutOfBoundsException|IllegalArgumentException)",
-        r"(SegmentationFault|SIGSEGV)",
     ]
 
     error_type = None
@@ -290,11 +277,11 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
             error_type = match.group(1)
             break
 
-    # Extract file paths
+    # Extract file paths (Python-only)
     file_patterns = [
         r'(?:File\s+["\']?)([^"\':\s]+\.py)',
-        r"(?:in\s+)([a-zA-Z0-9_/]+\.(?:py|js|ts|go|rs|java))",
-        r"([a-zA-Z0-9_/]+\.(?:py|js|ts|go|rs|java))(?:\s*:?\s*\d+)?",
+        r"(?:in\s+)([a-zA-Z0-9_/]+\.py)",
+        r"([a-zA-Z0-9_/]+\.py)(?:\s*:?\s*\d+)?",
     ]
 
     affected_files = []
@@ -381,42 +368,11 @@ def clone_repository(
 
 
 def detect_language(repo_dir: str) -> str:
-    """Detect the primary programming language of a repository."""
-    repo_path = Path(repo_dir)
+    """Detect the primary programming language of a repository.
 
-    # Check for language-specific files
-    indicators = {
-        "python": ["requirements.txt", "setup.py", "pyproject.toml", "Pipfile"],
-        "node": ["package.json", "yarn.lock", "package-lock.json"],
-        "go": ["go.mod", "go.sum"],
-        "rust": ["Cargo.toml", "Cargo.lock"],
-        "java": ["pom.xml", "build.gradle", "build.gradle.kts"],
-    }
-
-    for lang, files in indicators.items():
-        for file in files:
-            if (repo_path / file).exists():
-                return lang
-
-    # Count file extensions as fallback
-    extensions = {
-        ".py": "python",
-        ".js": "node",
-        ".ts": "node",
-        ".go": "go",
-        ".rs": "rust",
-        ".java": "java",
-    }
-
-    ext_counts = {}
-    for ext, lang in extensions.items():
-        count = len(list(repo_path.rglob(f"*{ext}")))
-        ext_counts[lang] = ext_counts.get(lang, 0) + count
-
-    if ext_counts:
-        return max(ext_counts, key=ext_counts.get)
-
-    return "python"  # Default
+    Returns 'python' always — v1 only supports Python.
+    """
+    return "python"
 
 
 def get_sandbox_image(language: str, version: Optional[str] = None) -> str:
@@ -705,9 +661,8 @@ def _parse_stack_trace_files(stderr: str) -> list[str]:
 
 
 def _is_code_file(path: str) -> bool:
-    """Check if a file is a code file."""
-    code_extensions = {".py", ".js", ".ts", ".go", ".rs", ".java", ".c", ".cpp", ".rb"}
-    return Path(path).suffix in code_extensions
+    """Check if a file is a Python code file."""
+    return Path(path).suffix == ".py"
 
 
 def _get_source_lines(file_path: Path, start: int, end: Optional[int]) -> str:
@@ -772,24 +727,11 @@ def _get_test_command(repo_dir: str, language: str) -> str:
     """Get the appropriate test command for a repository."""
     repo_path = Path(repo_dir)
 
-    if language == "python":
-        if (repo_path / "pytest.ini").exists() or (
-            repo_path / "pyproject.toml"
-        ).exists():
-            return "pytest"
-        return "python -m unittest discover"
-    elif language == "node":
-        return "npm test"
-    elif language == "go":
-        return "go test ./..."
-    elif language == "rust":
-        return "cargo test"
-    elif language == "java":
-        if (repo_path / "pom.xml").exists():
-            return "mvn test"
-        return "gradle test"
-
-    return "pytest"
+    if (repo_path / "pytest.ini").exists() or (
+        repo_path / "pyproject.toml"
+    ).exists():
+        return "pytest"
+    return "python -m unittest discover"
 
 
 async def validate_issue(issue: QueuedIssue) -> ValidationResult:

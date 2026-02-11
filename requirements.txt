@@ -17,16 +17,9 @@ amqp>=5.2
 # Redis
 redis>=5.0
 
-# GitHub
-PyGithub>=2.1
-gitpython>=3.1
-
 # LLM
 openai>=1.0
 tiktoken>=0.5
-
-# NLP
-spacy>=3.7
 
 # Security Scanning
 bandit>=1.7
@@ -51,9 +44,6 @@ pytest>=7.4
 pytest-asyncio>=0.23
 pytest-cov>=4.1
 pytest-httpx>=0.28
-locust>=2.20
 
-# Observability
-sentry-sdk>=1.39
-prometheus-client>=0.19
+# Structured Logging
 structlog>=24.1
