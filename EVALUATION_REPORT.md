@@ -1,428 +1,116 @@
-# AutoResolve Comprehensive Software Evaluation Report
+## PROJECT EVALUATION REPORT
 
-**Evaluation Date:** 2026-02-04
-**Evaluator:** Claude Opus 4.5
-**Codebase Version:** 1.0.0 (commit 7f8f1cd)
-**Scope:** Full codebase evaluation across all quality dimensions
+**Primary Classification:** Underdeveloped
+**Secondary Tags:** Good Concept, Over-Scoped for Current Maturity
 
 ---
 
-## EXECUTIVE SUMMARY
+### CONCEPT ASSESSMENT
 
-**Overall Assessment:** NEEDS-WORK
-**Purpose Fidelity:** ALIGNED
-**Confidence Level:** HIGH
+**Problem solved:** Reducing the latency between a bug report being filed and a fix being proposed. Manual triage-to-patch cycles on open-source repos take hours to days. AutoResolve aims to compress this to minutes.
 
-AutoResolve is a well-conceived automated GitHub issue resolution system that demonstrates strong architectural alignment with its documented specification. The implementation faithfully follows the five-module pipeline architecture (Monitoring → Validation → Fix Generation → Security Audit → Approval) as specified in the README. The codebase shows evidence of a recent security audit with critical vulnerabilities addressed. However, several issues require attention before production deployment: residual medium-severity findings from the previous audit remain documented but unfixed, test coverage appears incomplete, and some spec features (like the fallback spaCy NER parser) may not be fully implemented. The core concept—secure, human-supervised AI-assisted bug fixing—is clearly expressed in both documentation and code structure.
+**User:** Open-source maintainers and engineering teams drowning in bug backlogs.
 
----
+**Is the pain real?** Yes. Bug triage fatigue is a genuine bottleneck, especially on popular repositories. The idea of a fully automated pipeline — from issue detection through sandbox reproduction, LLM-generated patch, security audit, to maintainer-approved PR — addresses a real workflow gap.
 
-## SCORES (1-10 scale)
+**Competition:** This is now a crowded space. GitHub Copilot Autofix ships natively inside GitHub Actions and PRs. Amazon CodeGuru, Snyk Code, and a growing ecosystem of SWE-bench-derived agents (SWE-Agent, Devin, OpenHands) all target the same "issue → fix → PR" loop. AutoResolve's differentiator — the embedded security audit stage and sandbox reproduction — is real but thin.
 
-| Dimension | Score | Justification |
-|-----------|-------|---------------|
-| **Purpose Fidelity** | | |
-| Intent Alignment | 9 | Implementation closely matches spec; all 5 modules present with documented responsibilities |
-| Conceptual Legibility | 9 | README is comprehensive (2500+ lines); architecture clearly expressed in code structure |
-| Spec Fidelity | 8 | Most spec behaviors implemented; minor deviations in LLM model naming (gpt-5-code vs gpt-4) |
-| Doctrine Compliance | 8 | Clear spec document with timestamps; AI implementation distinct from human design |
-| Ecosystem Position | 7 | Standalone project with well-defined dependencies; no apparent portfolio conflicts |
-| **Implementation Quality** | | |
-| Structure | 9 | Excellent module organization; clear separation of concerns; follows spec directory layout |
-| Code Quality | 8 | Consistent naming; type hints throughout; some minor DRY violations |
-| Correctness | 7 | Previous audit found/fixed critical issues; some edge cases may remain |
-| Error Handling | 7 | Good exception handling patterns; some silent failures in GitHub API calls |
-| Security | 8 | Security-first design; previous critical vulns fixed; command sanitization implemented |
-| Performance | 7 | Reasonable async patterns; potential memory concerns with HTTP client lifecycle |
-| Dependencies | 8 | 59 well-chosen packages; modern versions; no obvious bloat |
-| Testing | 6 | Tests exist for core modules; coverage unclear; some test scenarios missing |
-| Documentation | 9 | Exceptional README; claude.md for conventions; SECURITY.md; AUDIT_REPORT.md |
-| Deployability | 8 | Docker Compose ready; config.yaml + env vars; CI/CD templates in spec |
-| Maintainability | 8 | Clear architecture; structured logging; modular design enables extension |
-| **OVERALL** | **7.8** | Solid implementation of well-designed system; needs polish before production |
+**Value prop in one sentence:** Automated, security-audited bug resolution that turns GitHub issues into merge-ready PRs without human intervention.
+
+**Verdict:** Sound concept, increasingly commoditized space. The embedded security-audit-before-merge angle is the strongest differentiator, but it needs to be far deeper to matter. The concept holds up if and only if the execution is sharp enough to compete with well-funded incumbents. Right now, it is not.
 
 ---
 
-## PURPOSE DRIFT FINDINGS
+### EXECUTION ASSESSMENT
 
-Issues where implementation diverges from documented intent:
+**Architecture:** Clean 5-stage pipeline (Monitor → Validate → Fix → Audit → Approve) with well-separated modules. The module boundaries are logical and the data flows are easy to follow. FastAPI + Celery + PostgreSQL + Redis + RabbitMQ is an appropriate stack for this workload. No architectural over-engineering here — it's a sensible design.
 
-### 1. LLM Model Naming Discrepancy
-- **Spec says:** `gpt-5-code` model for fix generation (README:856)
-- **Code does:** Configures `gpt-4` as default (config.yaml:50, fix_generator.py:36)
-- **Impact:** Low - easily configurable; spec appears aspirational
+**What's done well:**
 
-### 2. Fallback Parser Implementation
-- **Spec says:** spaCy NER fallback when LLM parsing fails (README:296-300)
-- **Code does:** Uses regex-based `_fallback_parse()` instead (validation.py:275-341)
-- **Impact:** Low - regex fallback achieves similar goal with fewer dependencies
+- **Security consciousness is above average.** Webhook HMAC-SHA256 verification fails closed if no secret is configured (`api/routes/webhook.py:98-104`). Prompt injection patterns are actively detected and escaped (`modules/validation.py:32-74`). Reproduction commands from user input are sanitized against an allowlist with dangerous pattern blocking (`modules/validation.py:107-176`). Docker sandboxes run with `network_mode="none"` and memory/CPU limits (`services/docker_service.py:84-86`). Path traversal protection exists in `_apply_diff_to_content` (`modules/approval.py:496-506`). This level of security thinking is rare in projects at this stage.
 
-### 3. Fuzz Testing Integration
-- **Spec says:** "Fuzz testing via pytest" for dynamic analysis (README:61)
-- **Code does:** Basic pytest execution without fuzzing plugins (security_auditor.py:462-467)
-- **Impact:** Medium - reduced dynamic analysis capability
+- **Configuration system is well-structured.** Pydantic-based settings with YAML overlay and environment variable expansion (`app/config.py`). Validation function with clear error messages. No default credentials baked in — empty strings force explicit configuration.
 
-### 4. Artifact Storage
-- **Spec says:** Artifact storage for diffs/logs (README:71-73)
-- **Code does:** No dedicated artifact storage service implemented
-- **Impact:** Low - logs stored in database; acceptable for v1.0
+- **Database schema is properly normalized.** Full audit trail, correct foreign key relationships with cascade deletes, proper indexing on query patterns, timezone-aware timestamps throughout (`models/database.py`).
 
----
+- **GitHub service has proper retry/backoff logic.** Respects `Retry-After` headers, handles rate limiting on 429s, exponential backoff with caps (`services/github_service.py:30-88`).
 
-## CONCEPTUAL CLARITY FINDINGS
+**What's wrong:**
 
-Issues affecting idea legibility:
+1. **The `_run_async` pattern is an anti-pattern** (`tasks/processing.py:33-40`). Creating a new event loop per Celery task (`asyncio.new_event_loop()`) is fragile and loses the benefits of async. Celery 5.x has native async support. The entire validation/fix/audit pipeline is async but gets run synchronously in new loops, wasting the async design.
 
-### 1. README Structure - POSITIVE
-The README is exemplary in leading with the concept. The first section clearly articulates:
-- **Purpose:** "monitors GitHub repositories for bug reports, validates their reproducibility..."
-- **Value Proposition:** Metrics table comparing automated vs manual baselines
-- **Architecture Diagram:** ASCII visualization of the complete pipeline
-- **Recommendation:** None needed - this is a model README
+2. **Tests won't actually pass against production code.** The test fixtures use SQLite in-memory (`tests/conftest.py:24`), but the models use PostgreSQL-specific `JSONB` columns (`models/database.py:59,104-106`). SQLAlchemy will silently fall back, but behavior differences between SQLite JSON handling and PostgreSQL JSONB mean tests prove less than they appear to. The `conftest.py:65` imports from `app.dependencies` which doesn't exist as a module — the `get_db` function lives in `models/database.py:300`. The test client fixture would fail at import time.
 
-### 2. Module Docstrings - POSITIVE
-Each module begins with clear documentation of its role in the pipeline:
-```python
-"""
-Validation Module for AutoResolve.
-Handles issue parsing, repository cloning, sandbox execution, and reproduction validation.
-"""
-```
-**Recommendation:** None needed
+3. **LLM provider abstraction is incomplete.** The `LLMService` only implements OpenAI (`services/llm_service.py:61-70`). The config references `llm_provider` but there's exactly one code path. The class wraps a single API call — this is a thin wrapper that adds indirection without value until a second provider is actually implemented.
 
-### 3. Function Naming Matches Spec Terminology
-Spec terminology (`should_process`, `reproduce_issue`, `audit_fix`) is consistently used in code.
-**Recommendation:** None needed
+4. **GitHub App authentication is a TODO** (`services/github_service.py:145-148`). The system falls back to a raw `GITHUB_TOKEN` environment variable. This means no installation-level permissions, no webhook auto-registration, and no GitHub App identity on comments/PRs. This is a significant gap for a system marketing itself as production-grade.
 
-### 4. Security-First Philosophy Clearly Expressed
-The code structure reinforces the spec's security emphasis:
-- Separate `security_auditor.py` module
-- Command sanitization in validation
-- Explicit webhook signature verification with fail-closed behavior
-**Recommendation:** None needed
+5. **Session management is inconsistent.** The main FastAPI app uses a health-check endpoint that creates sessions manually (`app/main.py:170-229`). The `enqueue_issue` function defines a context manager inline (`modules/monitoring.py:157-168`). Celery tasks manage sessions directly (`tasks/processing.py:159-160`). There's a `get_db` generator in `models/database.py:300-307` that's apparently meant for dependency injection but isn't consistently used.
+
+6. **`get_session_factory()` creates a new engine on every call** (`models/database.py:278-285, 288-291`). `get_engine()` calls `create_engine()` each time. In a Celery worker processing many tasks, this means repeated engine creation — connection pool benefits are lost. The engine should be cached.
+
+7. **Multi-language support is shallow.** Go, Rust, and Java sandbox images are defined (`modules/validation.py:77-90`) and syntax checkers exist (`modules/fix_generator.py:441-500`), but the issue parsing regex is Python-focused (`modules/validation.py:280-284`), function extraction only works for Python (`modules/validation.py:588-618`), and the LLM prompt template doesn't vary by language. These languages are listed but not genuinely supported.
+
+8. **Token estimation is crude.** `estimate_tokens` divides character count by 4 (`modules/fix_generator.py:49-51`) instead of using the `tiktoken` library that's already in the dependencies. The `LLMService.count_tokens` method uses tiktoken properly (`services/llm_service.py:104-124`) but `fix_generator.py` doesn't call it — it rolls its own rough approximation.
+
+9. **The diff application path is fragile.** `_apply_diff_to_content` in `modules/approval.py:493-530` shells out to the `patch` command, tries `-p1` then falls back to `-p0`, and extracts only the basename from the file path (losing directory structure). If the diff contains paths with subdirectories, the patch may not apply correctly in the flat temp directory.
+
+**Verdict:** Execution is **competent but immature**. The architecture matches the ambition. The code is readable and the security posture is genuine. But foundational issues (broken test infrastructure, incomplete provider abstraction, anti-pattern async usage, session management inconsistencies) indicate this hasn't been run against real workloads. The gap between "designed" and "battle-tested" is wide.
 
 ---
 
-## CRITICAL FINDINGS
+### SCOPE ANALYSIS
 
-Issues that MUST be addressed before production use:
+**Core Feature:** The 5-stage automated pipeline: Issue monitoring → Sandbox reproduction → LLM fix generation → Security audit → Maintainer approval + PR creation.
 
-### 1. CORS Configuration Too Permissive
-**Location:** `app/main.py:61-67`
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # CRITICAL: Allows any origin
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
-**Risk:** Combined with `allow_credentials=True`, this enables CSRF-like attacks against authenticated endpoints.
-**Recommendation:** Restrict `allow_origins` to known deployment domains.
+**Supporting:**
+- GitHub webhook ingestion and signature verification
+- Redis-based deduplication and queue management
+- Docker sandbox isolation for reproduction
+- Celery task queue for async processing
+- Configuration management with YAML + env vars
+- Database persistence with full audit trail
 
-### 2. Residual datetime.utcnow() Usage in Schemas
-**Location:** `models/schemas.py:30,85,121,177,239,355`
-```python
-queued_at: datetime = Field(default_factory=datetime.utcnow)  # Naive datetime
-```
-**Risk:** AUDIT_REPORT.md noted timezone issues were "FIXED" but schema defaults still use naive datetimes, potentially causing timezone comparison bugs with database columns defined as `DateTime(timezone=True)`.
-**Recommendation:** Change all `datetime.utcnow` to `lambda: datetime.now(timezone.utc)`.
+**Nice-to-Have:**
+- Multi-language support (Go, Rust, Java) — currently superficial
+- Dynamic security analysis / fuzz testing (`modules/security_auditor.py:428-494`) — disabled by default
+- Reaction-based approval (`+1` / `-1` on issues) — clever UX but niche
+- Regeneration workflow from maintainer feedback
 
-### 3. SQL Query Without Parameter Binding
-**Location:** `app/main.py:101`
-```python
-conn.execute("SELECT 1")
-```
-**Risk:** While this specific query is safe, the pattern suggests raw SQL usage elsewhere. The SQLAlchemy 2.0 API prefers `conn.execute(text("SELECT 1"))`.
-**Recommendation:** Use `sqlalchemy.text()` wrapper for raw SQL strings.
+**Distractions:**
+- Notification system (Slack, email) — `services/notification_service.py` exists as a service but is disabled and untested. Standard webhook integration that every project eventually adds but doesn't need at v1.
+- Prometheus metrics and Sentry integration — observability plumbing before there's anything observable in production.
+- Load testing with Locust — premature for a system that hasn't processed a single real issue.
+
+**Wrong Product:**
+- None. Everything here serves the core pipeline. No features belong in a different project.
+
+**Scope Verdict:** Focused. The 5-stage pipeline is coherent and the supporting infrastructure is justified. The multi-language angle inflates perceived scope without delivering real depth — it should either be Python-only for now or each language should be properly supported. But overall, scope discipline is better than average.
 
 ---
 
-## HIGH-PRIORITY FINDINGS
-
-Issues that SHOULD be addressed soon:
-
-### 1. Incomplete Transaction Management (Documented in AUDIT_REPORT)
-**Location:** `modules/approval.py:552-586`
-```python
-SessionLocal = get_session_factory()
-db = SessionLocal()
-try:
-    # operations
-    db.commit()
-finally:
-    db.close()
-```
-**Risk:** No rollback on exception; partial state on failure.
-**Status:** Documented in AUDIT_REPORT as "MEDIUM" but not fixed.
-**Recommendation:** Use context manager pattern:
-```python
-with Session() as session:
-    with session.begin():
-        # operations
-```
-
-### 2. Missing Rate Limiting on Management API
-**Location:** `api/routes/repos.py`, `api/routes/issues.py`, `api/routes/proposals.py`
-**Risk:** AUDIT_REPORT noted missing rate limiting (Issue #9) but only webhook endpoint has rate limiting implemented.
-**Status:** Documented but not fixed.
-**Recommendation:** Add `RateLimiter` dependency to management endpoints.
-
-### 3. HTTP Client Resource Management
-**Location:** `services/github_service.py` (per AUDIT_REPORT Issue #12)
-**Risk:** HTTP clients created without proper cleanup in some code paths.
-**Status:** AUDIT_REPORT noted as "MEDIUM" - documented but unfixed.
-**Recommendation:** Implement async context manager pattern or explicit cleanup.
-
-### 4. Limited Language Syntax Validation
-**Location:** `modules/fix_generator.py:422-463`
-**Observation:** Syntax validation added for Go, Rust, and Java (addressing AUDIT_REPORT Issue #8), but implementations use external tools that may not be available in all environments.
-**Recommendation:** Add graceful fallback when syntax checkers unavailable; document required tools.
-
----
-
-## MODERATE FINDINGS
-
-Issues worth addressing when time permits:
-
-### 1. Hardcoded Timeouts Scattered Throughout
-**Locations:**
-- `services/github_service.py`: `timeout=30.0` (per AUDIT_REPORT Issue #14)
-- `modules/fix_generator.py:427,441,457`: Various hardcoded timeouts
-**Recommendation:** Centralize all timeouts in configuration.
-
-### 2. Error Handling Silent in poll_for_approval
-**Location:** `modules/approval.py:204-222`
-```python
-except Exception as e:
-    logger.error(f"Failed to get issue comments...")
-    comments = []  # Silently continues with empty list
-```
-**Impact:** Transient GitHub API failures may cause missed approvals.
-**Recommendation:** Implement retry logic or propagate errors after max retries.
-
-### 3. Container Label Mismatch (AUDIT_REPORT Issue #16)
-**Location:** `services/docker_service.py:86,156-170`
-- Containers are created with label `{"autoresolve": "sandbox"}`
-- Cleanup filters by `filters={"label": label}` where `label="autoresolve"`
-**Impact:** Cleanup may not find containers correctly.
-**Recommendation:** Use consistent label format: `{"label": "autoresolve=sandbox"}` for both.
-
-### 4. Import Inside Function
-**Location:** `modules/approval.py:300-327` (re module at function scope)
-**Impact:** Minor performance overhead; style inconsistency.
-**Note:** Already documented in AUDIT_REPORT Issue #13.
-
-### 5. Default Credentials in config.py
-**Location:** `app/config.py` (per AUDIT_REPORT Issue #7)
-```python
-url: str = "postgresql://autoresolve:password@localhost:5432/autoresolve"
-broker_url: str = "amqp://guest:guest@localhost:5672//"
-```
-**Risk:** Developers may accidentally deploy with defaults.
-**Recommendation:** Remove defaults; require explicit configuration.
-
-### 6. Health Check Uses Deprecated Pattern
-**Location:** `app/main.py:101`
-```python
-conn.execute("SELECT 1")
-```
-Should use SQLAlchemy 2.0 style: `conn.execute(text("SELECT 1"))` with import from sqlalchemy.
-
----
-
-## OBSERVATIONS
-
-Non-blocking notes, patterns observed, style suggestions:
-
-### Code Style
-- **Consistent use of type hints** throughout codebase
-- **Google-style docstrings** used consistently
-- **Line length** follows Black default (88 chars)
-- **Import organization** follows isort conventions
-
-### Architectural Patterns
-- **Dependency injection** via FastAPI Depends() properly implemented
-- **Service layer pattern** for external integrations (GitHub, LLM, Docker)
-- **Repository pattern** implied but not fully abstracted for database access
-
-### Security Patterns
-- **Fail-closed webhook verification** properly implemented
-- **Command sanitization** with allow-list approach in validation.py
-- **Prompt injection detection** with pattern matching (could be enhanced with ML-based detection)
-
-### Testing Observations
-- **5 test files** covering all core modules
-- **Mock-based unit tests** for external dependencies
-- **Missing:** Integration tests, API endpoint tests, load tests (Locust file mentioned in spec but not found)
-- **Test quality:** Tests verify spec requirements, not just implementation details
-
-### Operational Concerns
-- **No health check for external LLM API** availability
-- **No circuit breaker** for external service failures
-- **Metrics/Prometheus** configured but unclear if instrumented
-
----
-
-## POSITIVE HIGHLIGHTS
-
-What the code does well:
-
-### Implementation Strengths
-
-1. **Exemplary Documentation**
-   - README serves as complete specification (2500+ lines)
-   - SECURITY.md with clear vulnerability disclosure process
-   - AUDIT_REPORT.md with transparent issue tracking
-   - claude.md for developer onboarding
-
-2. **Security-First Architecture**
-   - Mandatory webhook signature verification (fail-closed)
-   - Network-isolated Docker sandboxes
-   - Multi-scanner security analysis (Bandit + Semgrep)
-   - CWE-to-severity mapping for consistent risk assessment
-   - Command sanitization with allow-list approach
-
-3. **Clean Module Separation**
-   - Each of 5 pipeline stages in dedicated module
-   - Clear input/output schemas defined in models/schemas.py
-   - Services isolated from business logic
-
-4. **Robust Error Handling Patterns**
-   - Comprehensive try/finally for resource cleanup
-   - Graceful degradation in sandbox execution
-   - Retry logic in fix generation with error feedback
-
-5. **Modern Python Practices**
-   - Pydantic v2 for validation
-   - Type hints throughout
-   - Async/await patterns for I/O operations
-   - SQLAlchemy 2.0 ORM style
-
-### Idea Expression Strengths
-
-1. **README Leads with the Problem**
-   - First paragraph explains *why* (automated bug fixing)
-   - Value proposition metrics immediately follow
-   - Architecture diagram makes concept tangible
-
-2. **Code Structure Mirrors Conceptual Model**
-   - 5 modules match 5 pipeline stages in spec
-   - Function names match spec terminology
-   - Schema names match documented data models
-
-3. **Human-in-the-Loop Philosophy Visible**
-   - Explicit approval step in pipeline
-   - Comments posted for human review
-   - No auto-merge by default
-   - Timeout/expiry handling for abandoned proposals
-
-4. **Security as First-Class Concern**
-   - Dedicated security_auditor module (not an afterthought)
-   - Security scan before any code changes
-   - Critical findings auto-reject (no human override)
-
----
-
-## RECOMMENDED ACTIONS
-
-Prioritized list of concrete next steps:
-
-### Immediate (Purpose)
-
-1. **Update schema datetime defaults** - Replace `datetime.utcnow` with timezone-aware factory in `models/schemas.py`
-
-2. **Document model naming intent** - Add note to README that `gpt-5-code` is aspirational; production uses configurable model
-
-### Immediate (Quality)
-
-1. **Fix CORS configuration** - Restrict origins in `app/main.py` to deployment domains
-   ```python
-   allow_origins=["https://your-domain.com"],
-   ```
-
-2. **Add SQLAlchemy text() wrapper** - Update `app/main.py:101`:
-   ```python
-   from sqlalchemy import text
-   conn.execute(text("SELECT 1"))
-   ```
-
-3. **Apply transaction context managers** - Update `modules/approval.py` database operations
-
-### Short-term
-
-1. **Implement rate limiting on management API** - Add RateLimiter to repos, issues, proposals routes
-
-2. **Fix container label mismatch** - Standardize label format in docker_service.py
-
-3. **Increase test coverage** - Add:
-   - Integration tests for full pipeline
-   - API endpoint tests
-   - Error path testing
-
-4. **Centralize timeout configuration** - Move hardcoded timeouts to config.yaml
-
-5. **Add retry logic for GitHub API** - Implement exponential backoff in github_service.py
-
-### Long-term
-
-1. **Implement artifact storage** - Add S3/local storage for diffs and logs as specified
-
-2. **Add ML-based prompt injection detection** - Enhance beyond pattern matching
-
-3. **Circuit breaker for external services** - Prevent cascade failures
-
-4. **Metrics instrumentation** - Instrument code for Prometheus metrics
-
-5. **Load testing** - Implement Locust tests as specified in README
-
----
-
-## QUESTIONS FOR AUTHORS
-
-Clarifications needed to complete assessment:
-
-1. **Test Coverage Target:** What is the actual test coverage? The spec mentions 90% unit / 80% integration targets but no coverage reports are present.
-
-2. **LLM Model Selection:** Is `gpt-5-code` a placeholder for a future model, or should the spec be updated to reflect current GPT-4 usage?
-
-3. **spaCy Dependency:** The spec mentions spaCy for NER fallback, but implementation uses regex. Was spaCy intentionally removed, or is this a TODO?
-
-4. **Artifact Storage:** The spec mentions artifact storage for diffs/logs. Is this planned for a future release?
-
-5. **Production Deployment:** Has this system been deployed to production? If so, what issues were encountered?
-
-6. **Multi-repo Handling:** The spec mentions "Multi-repo Analysis" as a future extension. Any design considerations captured?
-
----
-
-## EVALUATION PARAMETERS
-
-| Parameter | Setting |
-|-----------|---------|
-| **Strictness** | STANDARD |
-| **Context** | PRODUCTION |
-| **Purpose Context** | IDEA-STAKE / ADOPTION-SEEKING |
-| **Focus Areas** | security-critical, concept-clarity-critical |
-
----
-
-## METHODOLOGY NOTES
-
-This evaluation was conducted by:
-
-1. **Reading all documentation** - README.md (spec), claude.md (conventions), SECURITY.md, AUDIT_REPORT.md
-2. **Analyzing codebase structure** - Directory layout, module organization, file relationships
-3. **Reading core implementation** - All 5 pipeline modules, entry points, services
-4. **Reviewing models and schemas** - Data flow validation, type safety
-5. **Examining tests** - Test coverage, test quality, missing scenarios
-6. **Cross-referencing with spec** - Line-by-line verification of documented behaviors
-7. **Security audit** - Reviewing previous findings, checking for new issues
-8. **Configuration review** - Defaults, environment handling, secrets management
-
-The evaluation prioritized purpose fidelity over implementation elegance, per the evaluation framework.
-
----
-
-*Evaluation complete. This report should be reviewed alongside the existing AUDIT_REPORT.md for full context on security findings.*
+### RECOMMENDATIONS
+
+**CUT:**
+- Multi-language support beyond Python. Remove Go/Rust/Java sandbox images and syntax validators from `modules/fix_generator.py:441-500` and `modules/validation.py:77-103`. They create a false impression of capability. Ship Python-only, do it well, add languages when there's demand and tests to back them.
+- Notification service (`services/notification_service.py`, `NotificationConfig`). No one is using this. Remove it entirely and add it back when there's a production deployment that needs it.
+- Observability plumbing (Sentry DSN config, Prometheus config). Remove from v1. Add when there's actual traffic to observe.
+- Load testing infrastructure (Locust). Premature. Remove until the system has processed at least 100 real issues.
+
+**DEFER:**
+- Dynamic security analysis (`run_dynamic_analysis`). Already disabled by default. Defer to v2 after static analysis has proven its value.
+- GitHub App authentication. Important for production but not blocking for a working prototype.
+- Reaction-based approval. Niche UX. Keep `@autoresolve approve/reject` commands, defer reaction parsing.
+
+**DOUBLE DOWN:**
+- **Test infrastructure.** Fix the SQLite/PostgreSQL mismatch. Fix the broken `app.dependencies` import. Add integration tests that use a real PostgreSQL instance via testcontainers or docker-compose. The current tests give false confidence. This is the single biggest quality gap.
+- **The security audit pipeline.** This is AutoResolve's best differentiator. Expand Bandit/Semgrep coverage, add OWASP mapping depth, make the security report in PR comments more detailed and actionable. This is what makes AutoResolve different from "LLM generates a patch."
+- **Sandbox reproduction accuracy.** The reproduction validation is the foundation of the entire pipeline. If reproduction fails or gives false positives, everything downstream is noise. Invest in better match scoring, support for reproduction scripts extracted from issues, and clearer feedback when reproduction fails.
+- **Fix the async/Celery integration.** Replace `_run_async` with proper Celery async task support or restructure the pipeline as synchronous. The current hybrid approach is the most likely source of production bugs.
+- **Cache the database engine.** `get_engine()` and `get_session_factory()` should cache their results to avoid creating new engines on every call.
+
+**FINAL VERDICT:** Refocus.
+
+The concept is valid. The architecture is sound. The security posture is a genuine differentiator. But the project is spread thin across languages it doesn't really support, includes infrastructure it doesn't yet need, and has a test suite that can't catch real bugs. Strip it to Python-only, fix the test infrastructure, harden the core pipeline, and ship it against a small set of real repositories.
+
+**Next Step:** Fix the broken test infrastructure (PostgreSQL via testcontainers, correct the `app.dependencies` import), then run the full pipeline end-to-end against a real GitHub repository with a known reproducible bug. Until that works, nothing else matters.
