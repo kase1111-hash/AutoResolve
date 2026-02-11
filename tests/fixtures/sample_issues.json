@@ -8,24 +8,6 @@
     "created_at": "2026-01-09T10:00:00Z",
     "state": "open"
   },
-  "javascript_undefined": {
-    "number": 456,
-    "title": "Cannot read property of undefined",
-    "body": "## Description\nApp crashes when clicking the submit button.\n\n## Error\n```\nTypeError: Cannot read property 'map' of undefined\n    at UserList (src/components/UserList.js:15:23)\n```\n\n## Steps to reproduce\n1. Load the user list page\n2. Wait for data to load\n3. Click submit\n\n## Environment\n- Node 20\n- React 18",
-    "labels": [{"name": "bug"}],
-    "user": {"login": "developer"},
-    "created_at": "2026-01-09T11:00:00Z",
-    "state": "open"
-  },
-  "null_pointer": {
-    "number": 789,
-    "title": "NullPointerException in OrderService",
-    "body": "## Description\nGetting NPE when processing orders.\n\n## Stack trace\n```\njava.lang.NullPointerException: Cannot invoke method on null object\n    at com.example.OrderService.processOrder(OrderService.java:45)\n    at com.example.OrderController.submit(OrderController.java:23)\n```\n\n## Expected\nOrder should be processed.\n\n## Actual\nApplication crashes.",
-    "labels": [{"name": "bug"}, {"name": "critical"}],
-    "user": {"login": "javadev"},
-    "created_at": "2026-01-09T12:00:00Z",
-    "state": "open"
-  },
   "feature_request": {
     "number": 101,
     "title": "Add dark mode support",

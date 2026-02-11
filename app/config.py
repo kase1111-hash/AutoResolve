@@ -77,9 +77,6 @@ class FilterConfig(BaseSettings):
         "ValueError",
         "AttributeError",
         "KeyError",
-        "NullPointerException",
-        "IndexOutOfBounds",
-        "SegmentationFault",
         "traceback",
         "stack trace",
         "exception",
@@ -143,9 +140,7 @@ class FixGenerationConfig(BaseSettings):
     context_lines_in_prompt: int = 50
     include_test_files: bool = False
     timeout_seconds: int = 120
-    # Syntax validation timeouts (seconds)
     syntax_check_timeout: int = 30
-    java_compile_timeout: int = 60
 
 
 class SecurityAuditConfig(BaseSettings):
@@ -179,22 +174,6 @@ class ApprovalConfig(BaseSettings):
     pr_labels: list[str] = ["automated", "autoresolve"]
     close_issue_on_merge: bool = True
     ci_checks_timeout_seconds: int = 300
-
-
-class NotificationConfig(BaseSettings):
-    """Notification configuration."""
-
-    model_config = {"extra": "ignore"}
-
-    slack_enabled: bool = False
-    slack_webhook_url: str = Field(default="")
-    slack_channel: str = "#autoresolve"
-    email_enabled: bool = False
-    smtp_host: str = "smtp.example.com"
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    email_from: str = "autoresolve@example.com"
 
 
 class DatabaseConfig(BaseSettings):
@@ -249,16 +228,6 @@ class LoggingConfig(BaseSettings):
     output: str = "stdout"
 
 
-class ObservabilityConfig(BaseSettings):
-    """Observability configuration."""
-
-    model_config = {"extra": "ignore"}
-
-    sentry_dsn: str = Field(default="")
-    prometheus_enabled: bool = True
-    prometheus_port: int = 9090
-
-
 class Settings(BaseSettings):
     """Master configuration aggregating all settings."""
 
@@ -270,13 +239,11 @@ class Settings(BaseSettings):
     fix_generation: FixGenerationConfig = FixGenerationConfig()
     security: SecurityAuditConfig = SecurityAuditConfig()
     approval: ApprovalConfig = ApprovalConfig()
-    notifications: NotificationConfig = NotificationConfig()
     database: DatabaseConfig = DatabaseConfig()
     redis: RedisConfig = RedisConfig()
     celery: CeleryConfig = CeleryConfig()
     api: APIConfig = APIConfig()
     logging: LoggingConfig = LoggingConfig()
-    observability: ObservabilityConfig = ObservabilityConfig()
     monitored_repos: list[str] = []
 
     @classmethod
@@ -310,7 +277,6 @@ class Settings(BaseSettings):
             "celery": ("celery", CeleryConfig),
             "api": ("api", APIConfig),
             "logging": ("logging", LoggingConfig),
-            "observability": ("observability", ObservabilityConfig),
         }
 
         # Merge standard config sections
@@ -320,50 +286,12 @@ class Settings(BaseSettings):
                 merged = {**current.model_dump(), **yaml_config[yaml_key]}
                 setattr(settings, attr_name, config_class(**merged))
 
-        # Handle notifications with nested structure
-        if "notifications" in yaml_config:
-            settings.notifications = cls._merge_notification_config(
-                settings.notifications, yaml_config["notifications"]
-            )
-
         # Handle monitored_repos list
         if "monitored_repos" in yaml_config:
             settings.monitored_repos = yaml_config["monitored_repos"]
 
         return settings
 
-    @classmethod
-    def _merge_notification_config(
-        cls, current: NotificationConfig, notif_config: dict
-    ) -> NotificationConfig:
-        """Merge notification configuration with nested slack/email support."""
-        flat_notif = {}
-
-        # Flatten nested slack config
-        if "slack" in notif_config:
-            slack = notif_config["slack"]
-            slack_mapping = {
-                "enabled": "slack_enabled",
-                "webhook_url": "slack_webhook_url",
-                "channel": "slack_channel",
-            }
-            for src_key, dest_key in slack_mapping.items():
-                if src_key in slack:
-                    flat_notif[dest_key] = slack[src_key]
-
-        # Flatten nested email config
-        if "email" in notif_config:
-            email = notif_config["email"]
-            email_mapping = {
-                "enabled": "email_enabled",
-                "smtp_host": "smtp_host",
-                "smtp_port": "smtp_port",
-            }
-            for src_key, dest_key in email_mapping.items():
-                if src_key in email:
-                    flat_notif[dest_key] = email[src_key]
-
-        return NotificationConfig(**{**current.model_dump(), **flat_notif})
 
 
 # Global settings instance

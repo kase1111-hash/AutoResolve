@@ -76,20 +76,8 @@ class TestDetectLanguage:
 
         assert detect_language(str(tmp_path)) == "python"
 
-    def test_detects_javascript(self, tmp_path):
-        """Should detect JavaScript/Node.js by package.json."""
-        (tmp_path / "package.json").write_text('{"name": "test"}')
-
-        assert detect_language(str(tmp_path)) == "node"
-
-    def test_detects_go(self, tmp_path):
-        """Should detect Go by go.mod."""
-        (tmp_path / "go.mod").write_text("module test")
-
-        assert detect_language(str(tmp_path)) == "go"
-
     def test_defaults_to_python(self, tmp_path):
-        """Should default to Python for unknown repos."""
+        """Should always return Python (v1 is Python-only)."""
         assert detect_language(str(tmp_path)) == "python"
 
 
@@ -103,10 +91,6 @@ class TestSandboxImage:
     def test_python_version(self):
         """Should return specific Python version."""
         assert "3.10" in get_sandbox_image("python", "3.10")
-
-    def test_node_default(self):
-        """Should return default Node image."""
-        assert "node" in get_sandbox_image("node")
 
     def test_unknown_language(self):
         """Should return Python for unknown languages."""
@@ -181,10 +165,10 @@ class TestIsCodeFile:
         assert _is_code_file("main.py") is True
         assert _is_code_file("src/utils.py") is True
 
-    def test_javascript_files(self):
-        """Should recognize JavaScript files."""
-        assert _is_code_file("index.js") is True
-        assert _is_code_file("app.ts") is True
+    def test_non_python_files(self):
+        """Should not recognize non-Python code files."""
+        assert _is_code_file("index.js") is False
+        assert _is_code_file("app.ts") is False
 
     def test_non_code_files(self):
         """Should not recognize non-code files."""
