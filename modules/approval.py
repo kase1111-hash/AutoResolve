@@ -102,9 +102,11 @@ Closes #{issue_number}
 
 
 def format_security_summary(report: SecurityReport) -> str:
-    """Format security report for comment display."""
+    """Format security report for comment display with actionable details."""
     if not report.has_vulnerabilities:
         return "No security issues detected"
+
+    from modules.security_auditor import OWASP_REFERENCES
 
     lines = [f"**Risk Score:** {report.risk_score:.2f}"]
     lines.append("")
@@ -119,8 +121,17 @@ def format_security_summary(report: SecurityReport) -> str:
     if report.critical_findings:
         lines.append("")
         lines.append("**Critical/High Findings:**")
-        for finding in report.critical_findings[:3]:
-            lines.append(f"- {finding.message} ({finding.file}:{finding.line_start})")
+        for finding in report.critical_findings[:5]:
+            cwe_tag = f" [{finding.cwe}]" if finding.cwe else ""
+            lines.append(
+                f"- **{finding.file}:{finding.line_start}**{cwe_tag} — {finding.message}"
+            )
+            if finding.recommendation:
+                lines.append(f"  - Fix: {finding.recommendation}")
+            if finding.cwe and finding.cwe in OWASP_REFERENCES:
+                lines.append(
+                    f"  - Ref: {OWASP_REFERENCES[finding.cwe]}"
+                )
 
     return "\n".join(lines)
 
@@ -491,24 +502,30 @@ async def create_pull_request(
 
 
 def _apply_diff_to_content(content: str, diff: str, file_path: str) -> str:
-    """Apply a unified diff to file content."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Sanitize file path to prevent path traversal attacks
-        # Extract just the filename, removing any directory components
-        safe_filename = os.path.basename(file_path.replace("..", "").lstrip("/\\"))
-        if not safe_filename:
-            safe_filename = "patched_file"
+    """Apply a unified diff to file content.
 
-        # Ensure the path stays within tmpdir
-        file_full_path = os.path.join(tmpdir, safe_filename)
+    Recreates the directory structure inside a temp dir so patches
+    with subdirectory paths (e.g. auth/login.py) apply correctly.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Sanitize: strip traversal components, normalize
+        sanitized = file_path.replace("..", "").lstrip("/\\")
+        sanitized = os.path.normpath(sanitized)
+        if not sanitized or sanitized == ".":
+            sanitized = "patched_file.py"
+
+        # Build full path inside tmpdir, creating parent dirs
+        file_full_path = os.path.join(tmpdir, sanitized)
         resolved_path = os.path.realpath(file_full_path)
         if not resolved_path.startswith(os.path.realpath(tmpdir)):
             raise ValueError(f"Invalid file path: {file_path}")
 
+        os.makedirs(os.path.dirname(file_full_path), exist_ok=True)
+
         with open(file_full_path, "w") as f:
             f.write(content)
 
-        # Apply patch
+        # Apply patch with -p1 (strips leading a/ or b/)
         result = subprocess.run(
             ["patch", "-p1", "-i", "-"],
             input=diff.encode(),

@@ -305,6 +305,20 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
     # Extract code snippets (markdown code blocks)
     code_blocks = re.findall(r"```(?:\w+)?\n(.*?)```", combined, re.DOTALL)
 
+    # Extract reproduction steps from bash/sh code blocks
+    shell_blocks = re.findall(r"```(?:bash|sh|shell|console)\n(.*?)```", combined, re.DOTALL)
+    reproduction_steps = []
+    for block in shell_blocks:
+        for line in block.strip().splitlines():
+            line = line.strip()
+            # Strip leading $ or > prompts
+            if line.startswith("$ "):
+                line = line[2:]
+            elif line.startswith("> "):
+                line = line[2:]
+            if line and not line.startswith("#"):
+                reproduction_steps.append(line)
+
     # Extract stack trace
     stack_trace = None
     trace_match = re.search(
@@ -319,7 +333,7 @@ def _fallback_parse(title: str, body: str) -> IssueContext:
         affected_files=affected_files,
         affected_functions=affected_functions,
         stack_trace=stack_trace,
-        reproduction_steps=[],
+        reproduction_steps=reproduction_steps,
         expected_behavior=None,
         actual_behavior=None,
         environment=EnvironmentInfo(),
@@ -434,14 +448,27 @@ def reproduce_issue(
         stderr = result.get("stderr", "")[-settings.validation.max_stderr_size :]
         stdout = result.get("stdout", "")[-settings.validation.max_stdout_size :]
         exit_code = result.get("exit_code", 1)
+        timed_out = result.get("timed_out", False)
 
         # Check if error matches expected
-        if context.error_type and context.error_type in stderr:
+        if timed_out:
+            validity = "timeout"
+            match_score = 0.1
+            if not stderr:
+                stderr = f"Sandbox execution timed out after {settings.validation.sandbox_timeout_seconds}s"
+        elif context.error_type and context.error_type in stderr:
             validity = "confirmed"
             match_score = _compute_similarity(context.error_message or "", stderr)
-        elif exit_code != 0:
+        elif exit_code != 0 and stderr:
+            # Non-zero exit with some error output — partial match
             validity = "partial"
-            match_score = 0.5
+            match_score = _compute_similarity(context.error_message or "", stderr)
+            # Floor at 0.4 for any non-zero exit with output
+            match_score = max(0.4, match_score)
+        elif exit_code != 0:
+            # Non-zero exit but no useful stderr
+            validity = "partial"
+            match_score = 0.3
         else:
             validity = "not_reproduced"
             match_score = 0.0
@@ -473,16 +500,36 @@ def reproduce_issue(
 
 
 def _compute_similarity(expected: str, actual: str) -> float:
-    """Compute text similarity between expected and actual error messages."""
+    """Compute similarity between expected and actual error output.
+
+    Scoring tiers:
+      1.0 — Exact full error message match
+      0.9 — Expected error message is a substring of actual
+      0.7 — Error type matches and partial message overlap
+      word_overlap — Proportional word overlap (fallback)
+    """
     if not expected or not actual:
         return 0.0
 
     expected_lower = expected.lower()
     actual_lower = actual.lower()
 
-    # Simple containment check
+    # Exact match
+    if expected_lower == actual_lower:
+        return 1.0
+
+    # Full containment
     if expected_lower in actual_lower:
         return 0.9
+
+    # Check if the error type (e.g. "TypeError") matches
+    error_type_pattern = re.compile(
+        r"(TypeError|ValueError|AttributeError|KeyError|IndexError|RuntimeError|Exception)"
+    )
+    expected_types = set(error_type_pattern.findall(expected))
+    actual_types = set(error_type_pattern.findall(actual))
+
+    type_match = bool(expected_types and expected_types & actual_types)
 
     # Word overlap
     expected_words = set(expected_lower.split())
@@ -491,8 +538,13 @@ def _compute_similarity(expected: str, actual: str) -> float:
     if not expected_words:
         return 0.0
 
-    overlap = len(expected_words & actual_words)
-    return overlap / len(expected_words)
+    overlap = len(expected_words & actual_words) / len(expected_words)
+
+    # Boost score if error type matches
+    if type_match:
+        return max(0.7, overlap)
+
+    return overlap
 
 
 def _extract_error_signature(stderr: str) -> Optional[str]:

@@ -26,27 +26,181 @@ logger = logging.getLogger(__name__)
 # Severity weights for risk scoring
 SEVERITY_WEIGHTS = {"critical": 10, "high": 7, "medium": 4, "low": 2, "info": 1}
 
-# CWE to severity mapping
+# CWE to severity mapping — covers OWASP Top 10 2021 categories
 CWE_SEVERITY_MAP = {
-    # Critical
-    "CWE-78": "critical",  # OS Command Injection
-    "CWE-89": "critical",  # SQL Injection
-    "CWE-94": "critical",  # Code Injection
-    "CWE-502": "critical",  # Deserialization
-    # High
-    "CWE-79": "high",  # XSS
+    # A01:2021 Broken Access Control
     "CWE-22": "high",  # Path Traversal
-    "CWE-918": "high",  # SSRF
-    "CWE-611": "high",  # XXE
-    "CWE-295": "high",  # Improper Cert Validation
-    # Medium
-    "CWE-327": "medium",  # Broken Crypto
-    "CWE-330": "medium",  # Insufficient Randomness
-    "CWE-532": "medium",  # Log Injection
-    "CWE-798": "medium",  # Hardcoded Credentials
-    # Low
+    "CWE-23": "high",  # Relative Path Traversal
+    "CWE-35": "high",  # Path Traversal ('.../...//')
+    "CWE-59": "medium",  # Improper Link Resolution
     "CWE-200": "low",  # Information Exposure
-    "CWE-209": "low",  # Error Message Exposure
+    "CWE-201": "low",  # Insertion of Sensitive Info Into Sent Data
+    "CWE-219": "medium",  # Storage of File with Sensitive Data Under Web Root
+    "CWE-264": "high",  # Permissions/Privileges/Access Controls
+    "CWE-275": "medium",  # Permission Issues
+    "CWE-276": "medium",  # Incorrect Default Permissions
+    "CWE-284": "high",  # Improper Access Control
+    "CWE-285": "high",  # Improper Authorization
+    "CWE-352": "high",  # CSRF
+    "CWE-359": "medium",  # Exposure of Private Personal Information
+    "CWE-377": "medium",  # Insecure Temporary File
+    "CWE-402": "low",  # Transmission of Private Resources into New Sphere
+    "CWE-425": "medium",  # Forced Browsing
+    "CWE-441": "high",  # Unintended Proxy or Intermediary
+    "CWE-497": "low",  # Exposure of System Data to Unauthorized Control Sphere
+    "CWE-538": "low",  # Insertion of Sensitive Info into Externally-Accessible File
+    "CWE-540": "medium",  # Inclusion of Sensitive Info in Source Code
+    "CWE-548": "low",  # Exposure of Info Through Directory Listing
+    "CWE-552": "medium",  # Files/Dirs Accessible to External Parties
+    "CWE-566": "high",  # Access to User Data Through SQL Injection
+    "CWE-601": "medium",  # Open Redirect
+    "CWE-639": "high",  # Authorization Bypass Through User-Controlled Key (IDOR)
+    "CWE-651": "low",  # Exposure of WSDL File
+    "CWE-668": "medium",  # Exposure of Resource to Wrong Sphere
+    "CWE-706": "medium",  # Use of Incorrectly-Resolved Name or Reference
+    "CWE-862": "high",  # Missing Authorization
+    "CWE-863": "high",  # Incorrect Authorization
+    "CWE-913": "high",  # Improper Control of Dynamically-Managed Code Resources
+    "CWE-922": "medium",  # Insecure Storage of Sensitive Information
+    "CWE-1275": "medium",  # Sensitive Cookie with Improper SameSite Attribute
+    # A02:2021 Cryptographic Failures
+    "CWE-261": "medium",  # Weak Encoding for Password
+    "CWE-296": "high",  # Improper Following of a Certificate's Chain of Trust
+    "CWE-310": "medium",  # Cryptographic Issues
+    "CWE-319": "medium",  # Cleartext Transmission of Sensitive Information
+    "CWE-321": "high",  # Use of Hard-coded Cryptographic Key
+    "CWE-322": "high",  # Key Exchange without Entity Authentication
+    "CWE-323": "high",  # Reusing a Nonce/Key Pair
+    "CWE-324": "medium",  # Use of a Key Past its Expiration Date
+    "CWE-325": "medium",  # Missing Cryptographic Step
+    "CWE-326": "medium",  # Inadequate Encryption Strength
+    "CWE-327": "medium",  # Broken/Risky Crypto Algorithm
+    "CWE-328": "medium",  # Use of Weak Hash
+    "CWE-329": "medium",  # Not Using an Unpredictable IV with CBC Mode
+    "CWE-330": "medium",  # Insufficient Randomness
+    "CWE-331": "medium",  # Insufficient Entropy
+    "CWE-335": "medium",  # Incorrect Usage of Seeds in PRNG
+    "CWE-336": "medium",  # Same Seed in PRNG
+    "CWE-337": "medium",  # Predictable Seed in PRNG
+    "CWE-338": "medium",  # Use of Weak PRNG
+    "CWE-340": "medium",  # Generation of Predictable Numbers
+    "CWE-347": "high",  # Improper Verification of Cryptographic Signature
+    "CWE-523": "medium",  # Unprotected Transport of Credentials
+    "CWE-720": "medium",  # OWASP Top Ten 2007 A9 - Insecure Communications
+    "CWE-757": "medium",  # Selection of Less-Secure Algorithm During Negotiation
+    "CWE-759": "medium",  # Use of a One-Way Hash without a Salt
+    "CWE-760": "medium",  # Use of a One-Way Hash with a Predictable Salt
+    "CWE-818": "medium",  # Insufficient Transport Layer Protection
+    "CWE-916": "medium",  # Use of Password Hash With Insufficient Effort
+    # A03:2021 Injection
+    "CWE-77": "critical",  # Command Injection
+    "CWE-78": "critical",  # OS Command Injection
+    "CWE-79": "high",  # XSS
+    "CWE-80": "medium",  # Basic XSS
+    "CWE-83": "medium",  # XSS in Attribute
+    "CWE-87": "medium",  # Improper Neutralization of Alternate XSS Syntax
+    "CWE-89": "critical",  # SQL Injection
+    "CWE-90": "high",  # LDAP Injection
+    "CWE-91": "high",  # XML Injection
+    "CWE-93": "medium",  # CRLF Injection
+    "CWE-94": "critical",  # Code Injection
+    "CWE-95": "critical",  # Eval Injection
+    "CWE-96": "critical",  # Static Code Injection
+    "CWE-97": "high",  # Server-Side Include Injection
+    "CWE-98": "critical",  # PHP Remote File Inclusion (SSTI analog)
+    "CWE-99": "high",  # Resource Injection
+    "CWE-113": "medium",  # HTTP Response Splitting
+    "CWE-116": "medium",  # Improper Encoding or Escaping of Output
+    "CWE-138": "medium",  # Improper Neutralization of Special Elements
+    "CWE-184": "medium",  # Incomplete List of Disallowed Inputs
+    "CWE-470": "high",  # Use of Externally-Controlled Input for Class Selection
+    "CWE-471": "medium",  # Modification of Assumed-Immutable Data
+    "CWE-502": "critical",  # Deserialization of Untrusted Data
+    "CWE-532": "medium",  # Log Injection / Insertion of Sensitive Info into Log File
+    "CWE-564": "high",  # SQL Injection: Hibernate
+    "CWE-610": "high",  # Externally Controlled Reference to Resource
+    "CWE-643": "high",  # XPath Injection
+    "CWE-644": "medium",  # Improper Neutralization of HTTP Headers
+    "CWE-652": "medium",  # Improper Neutralization of Data within XQuery Expressions
+    "CWE-917": "critical",  # Expression Language Injection
+    # A04:2021 Insecure Design
+    "CWE-209": "low",  # Error Message Info Exposure
+    "CWE-256": "high",  # Plaintext Storage of Password
+    "CWE-501": "medium",  # Trust Boundary Violation
+    "CWE-522": "high",  # Insufficiently Protected Credentials
+    "CWE-798": "medium",  # Hardcoded Credentials
+    # A05:2021 Security Misconfiguration
+    "CWE-2": "low",  # Environment Configuration
+    "CWE-11": "low",  # ASP.NET Misconfiguration
+    "CWE-13": "low",  # ASP.NET Misconfiguration: Password in Configuration File
+    "CWE-15": "low",  # External Control of System/Config Setting
+    "CWE-16": "low",  # Configuration
+    "CWE-260": "medium",  # Password in Config File
+    "CWE-315": "medium",  # Cleartext Storage of Sensitive Info in Cookie
+    "CWE-520": "low",  # .NET Misconfiguration
+    "CWE-526": "low",  # Exposure of Sensitive Info Through Env Variables
+    "CWE-537": "low",  # Java Runtime Error Info Leak
+    "CWE-541": "low",  # Info Exposure Through Include Source Code
+    "CWE-547": "low",  # Use of Hard-coded, Security-relevant Constants
+    "CWE-611": "high",  # XXE
+    "CWE-614": "medium",  # Sensitive Cookie in HTTP Session Without 'Secure' Attr
+    "CWE-756": "low",  # Missing Custom Error Page
+    "CWE-776": "high",  # Improper Restriction of Recursive Entity References in DTDs
+    "CWE-942": "medium",  # Permissive CORS Policy
+    "CWE-1004": "medium",  # Sensitive Cookie Without 'HttpOnly' Flag
+    "CWE-1032": "low",  # OWASP Top Ten 2017 A6 - Security Misconfiguration
+    # A06:2021 Vulnerable and Outdated Components (no CWE — dependency scanning)
+    # A07:2021 Identification and Authentication Failures
+    "CWE-255": "high",  # Credentials Management Errors
+    "CWE-259": "high",  # Use of Hard-coded Password
+    "CWE-287": "high",  # Improper Authentication
+    "CWE-288": "high",  # Authentication Bypass Using an Alternate Path or Channel
+    "CWE-290": "high",  # Authentication Bypass by Spoofing
+    "CWE-294": "high",  # Authentication Bypass by Capture-replay
+    "CWE-295": "high",  # Improper Certificate Validation
+    "CWE-297": "high",  # Improper Validation of Certificate with Host Mismatch
+    "CWE-300": "high",  # Channel Accessible by Non-Endpoint
+    "CWE-302": "high",  # Authentication Bypass by Assumed-Immutable Data
+    "CWE-304": "high",  # Missing Critical Step in Authentication
+    "CWE-306": "high",  # Missing Authentication for Critical Function
+    "CWE-307": "medium",  # Improper Restriction of Excessive Auth Attempts
+    "CWE-346": "high",  # Origin Validation Error
+    "CWE-384": "high",  # Session Fixation
+    "CWE-521": "medium",  # Weak Password Requirements
+    "CWE-613": "medium",  # Insufficient Session Expiration
+    "CWE-620": "medium",  # Unverified Password Change
+    "CWE-640": "medium",  # Weak Password Recovery Mechanism
+    "CWE-798": "medium",  # Use of Hard-coded Credentials (also A04)
+    # A08:2021 Software and Data Integrity Failures
+    "CWE-345": "high",  # Insufficient Verification of Data Authenticity
+    "CWE-353": "high",  # Missing Support for Integrity Check
+    "CWE-426": "high",  # Untrusted Search Path
+    "CWE-494": "critical",  # Download of Code Without Integrity Check
+    "CWE-829": "high",  # Inclusion of Functionality from Untrusted Control Sphere
+    # A09:2021 Security Logging and Monitoring Failures
+    "CWE-117": "medium",  # Improper Output Neutralization for Logs
+    "CWE-223": "low",  # Omission of Security-relevant Information
+    "CWE-778": "low",  # Insufficient Logging
+    # A10:2021 Server-Side Request Forgery
+    "CWE-918": "high",  # SSRF
+}
+
+# OWASP reference URLs for CWE categories
+OWASP_REFERENCES = {
+    "CWE-78": "https://owasp.org/Top10/A03_2021-Injection/",
+    "CWE-79": "https://owasp.org/Top10/A03_2021-Injection/",
+    "CWE-89": "https://owasp.org/Top10/A03_2021-Injection/",
+    "CWE-94": "https://owasp.org/Top10/A03_2021-Injection/",
+    "CWE-502": "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/",
+    "CWE-22": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
+    "CWE-918": "https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/",
+    "CWE-611": "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+    "CWE-327": "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/",
+    "CWE-798": "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
+    "CWE-287": "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
+    "CWE-295": "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
+    "CWE-352": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
+    "CWE-284": "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
 }
 
 
