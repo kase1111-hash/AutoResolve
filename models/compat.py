@@ -7,9 +7,22 @@ produce the same behavior as production PostgreSQL.
 """
 
 import json
+from datetime import date, datetime
+from uuid import UUID
 
 from sqlalchemy import Text
 from sqlalchemy.types import TypeDecorator
+
+
+def _json_default(obj):
+    """Handle datetime and UUID objects during JSON serialization."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, date):
+        return obj.isoformat()
+    if isinstance(obj, UUID):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 class JSONType(TypeDecorator):
@@ -20,7 +33,7 @@ class JSONType(TypeDecorator):
 
     def process_bind_param(self, value, dialect):
         if value is not None:
-            return json.dumps(value)
+            return json.dumps(value, default=_json_default)
         return value
 
     def process_result_value(self, value, dialect):
