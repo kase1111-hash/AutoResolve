@@ -9,7 +9,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -232,7 +232,7 @@ def seed_database(db_url: Optional[str] = None):
                 repo_full_name=repo_name,
                 installation_id=12345,
                 enabled=True,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
             db.add(repo)
             print(f"  + {repo_name}")
@@ -265,8 +265,8 @@ def seed_database(db_url: Optional[str] = None):
                 error_type=issue_data.get("error_type"),
                 error_signature=issue_data.get("error_signature"),
                 status="new",
-                created_at=datetime.utcnow() - timedelta(hours=len(db_issues) * 2),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc) - timedelta(hours=len(db_issues) * 2),
+                updated_at=datetime.now(timezone.utc),
             )
             db.add(issue)
             db.flush()
@@ -297,7 +297,7 @@ def seed_database(db_url: Optional[str] = None):
                 affected_files=prop_data["affected_files"],
                 confidence_score=prop_data["confidence_score"],
                 status=prop_data["status"],
-                generated_at=datetime.utcnow()
+                generated_at=datetime.now(timezone.utc)
                 - timedelta(hours=prop_data["issue_index"]),
                 model_used="gpt-4",
                 prompt_tokens=500,
@@ -318,8 +318,8 @@ def seed_database(db_url: Optional[str] = None):
                     proposal_id=proposal.id,
                     status="approved",
                     approved_by="test-maintainer",
-                    approved_at=datetime.utcnow() - timedelta(minutes=30),
-                    resolved_at=datetime.utcnow() - timedelta(minutes=30),
+                    approved_at=datetime.now(timezone.utc) - timedelta(minutes=30),
+                    resolved_at=datetime.now(timezone.utc) - timedelta(minutes=30),
                 )
                 db.add(approval)
 

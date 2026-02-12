@@ -3,7 +3,7 @@ Pytest configuration and fixtures for AutoResolve tests.
 """
 
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -135,7 +135,7 @@ def queued_issue() -> QueuedIssue:
         body="Error when logging in: TypeError",
         labels=["bug"],
         author="testuser",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         priority=2,
     )
 

@@ -39,13 +39,29 @@ MODEL_CONTEXT_LIMITS = {
     "default": 8000,
 }
 
-# Approximate chars per token (conservative estimate)
-CHARS_PER_TOKEN = 4
+_FALLBACK_CHARS_PER_TOKEN = 4
+_encoding = None
+
+
+def _get_encoding():
+    """Lazily load the tiktoken encoding, falling back to None."""
+    global _encoding
+    if _encoding is None:
+        try:
+            import tiktoken
+
+            _encoding = tiktoken.encoding_for_model("gpt-4")
+        except Exception:
+            _encoding = False  # Sentinel: tried and failed
+    return _encoding if _encoding else None
 
 
 def estimate_tokens(text: str) -> int:
-    """Estimate the number of tokens in a text string."""
-    return len(text) // CHARS_PER_TOKEN
+    """Estimate the number of tokens in a text string using tiktoken."""
+    enc = _get_encoding()
+    if enc:
+        return len(enc.encode(text))
+    return len(text) // _FALLBACK_CHARS_PER_TOKEN
 
 
 def truncate_for_context(text: str, max_tokens: int, preserve_end: bool = False) -> str:
@@ -60,16 +76,25 @@ def truncate_for_context(text: str, max_tokens: int, preserve_end: bool = False)
     Returns:
         Truncated text
     """
-    max_chars = max_tokens * CHARS_PER_TOKEN
-    if len(text) <= max_chars:
+    if estimate_tokens(text) <= max_tokens:
         return text
 
-    if preserve_end:
-        truncated = "... [truncated] ...\n" + text[-max_chars:]
-    else:
-        truncated = text[:max_chars] + "\n... [truncated] ..."
+    enc = _get_encoding()
+    if enc:
+        tokens = enc.encode(text)
+        if preserve_end:
+            truncated_tokens = tokens[-max_tokens:]
+            return "... [truncated] ...\n" + enc.decode(truncated_tokens)
+        else:
+            truncated_tokens = tokens[:max_tokens]
+            return enc.decode(truncated_tokens) + "\n... [truncated] ..."
 
-    return truncated
+    # Fallback: character-based approximation
+    max_chars = max_tokens * _FALLBACK_CHARS_PER_TOKEN
+    if preserve_end:
+        return "... [truncated] ...\n" + text[-max_chars:]
+    else:
+        return text[:max_chars] + "\n... [truncated] ..."
 
 # Fix generation prompt template
 FIX_PROMPT_TEMPLATE = """You are an expert software engineer fixing a bug. Generate a minimal, focused patch.

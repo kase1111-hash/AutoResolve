@@ -148,24 +148,7 @@ def enqueue_issue(issue: QueuedIssue) -> None:
     mark_as_queued(issue.repo_full_name, issue.issue_id)
 
     # Save to database with proper transaction management
-    from contextlib import contextmanager
-
-    from models.database import Issue, get_session_factory
-
-    SessionLocal = get_session_factory()
-
-    @contextmanager
-    def get_db_session():
-        """Context manager for database session with automatic cleanup."""
-        session = SessionLocal()
-        try:
-            yield session
-            session.commit()
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+    from models.database import Issue, get_db_session
 
     try:
         with get_db_session() as db:

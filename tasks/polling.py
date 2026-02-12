@@ -225,53 +225,49 @@ def cleanup_expired_proposals():
     Runs daily to archive old proposals.
     """
     settings = get_settings()
-    SessionLocal = get_session_factory()
-    db = SessionLocal()
 
     try:
         from datetime import timedelta
 
+        from models.database import get_db_session
+
         cutoff = datetime.now(timezone.utc) - timedelta(days=settings.approval.timeout_days)
 
-        # Find proposals that are still pending past the cutoff
-        pending_proposals = (
-            db.query(DBFixProposal)
-            .filter(
-                DBFixProposal.status == "pending_approval",
-                DBFixProposal.generated_at < cutoff,
-            )
-            .all()
-        )
-
-        for proposal in pending_proposals:
-            logger.info(f"Expiring proposal {proposal.proposal_id}")
-
-            proposal.status = "expired"
-
-            # Update associated approval
-            approval = (
-                db.query(Approval)
+        with get_db_session() as db:
+            # Find proposals that are still pending past the cutoff
+            pending_proposals = (
+                db.query(DBFixProposal)
                 .filter(
-                    Approval.proposal_id == proposal.id, Approval.status == "pending"
+                    DBFixProposal.status == "pending_approval",
+                    DBFixProposal.generated_at < cutoff,
                 )
-                .first()
+                .all()
             )
 
-            if approval:
-                approval.status = "expired"
-                approval.resolved_at = datetime.now(timezone.utc)
+            for proposal in pending_proposals:
+                logger.info(f"Expiring proposal {proposal.proposal_id}")
 
-            # Update issue status
-            if proposal.issue:
-                proposal.issue.status = "expired"
+                proposal.status = "expired"
 
-        db.commit()
+                # Update associated approval
+                approval = (
+                    db.query(Approval)
+                    .filter(
+                        Approval.proposal_id == proposal.id, Approval.status == "pending"
+                    )
+                    .first()
+                )
+
+                if approval:
+                    approval.status = "expired"
+                    approval.resolved_at = datetime.now(timezone.utc)
+
+                # Update issue status
+                if proposal.issue:
+                    proposal.issue.status = "expired"
 
         if pending_proposals:
             logger.info(f"Expired {len(pending_proposals)} proposals")
 
     except Exception as e:
         logger.error(f"Error cleaning up expired proposals: {e}", exc_info=True)
-
-    finally:
-        db.close()
