@@ -11,8 +11,8 @@ Automated GitHub issue resolution system that monitors repositories for bug repo
 - **Cache**: Redis 7+
 - **Task Queue**: Celery 5.3+ with RabbitMQ 3.12+
 - **Validation**: Pydantic v2.5+
-- **External APIs**: PyGithub, OpenAI, Docker SDK
-- **Security Scanning**: Bandit, Semgrep, Safety
+- **External APIs**: httpx (GitHub API), OpenAI, Docker SDK
+- **Security Scanning**: Bandit, Semgrep
 - **Testing**: pytest with pytest-cov, pytest-asyncio
 
 ## Project Structure
@@ -28,9 +28,9 @@ modules/                # Core business logic (5 modules in pipeline)
   security_auditor.py   # Bandit/Semgrep scanning
   approval.py           # PR creation, maintainer polling
 models/                 # SQLAlchemy ORM models + Pydantic schemas
-services/               # External integrations (GitHub, LLM, Docker, notifications)
+services/               # External integrations (GitHub, LLM, Docker)
 tasks/                  # Celery async tasks and app configuration
-utils/                  # Utilities (diff parsing, language detection, logging)
+utils/                  # Utilities (diff parsing, signature verification, logging)
 templates/              # Jinja2 templates for comments and LLM prompts
 tests/                  # pytest test suite with fixtures
 migrations/             # Alembic database migrations
