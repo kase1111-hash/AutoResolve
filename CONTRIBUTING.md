@@ -53,8 +53,10 @@ Thank you for your interest in contributing to AutoResolve! This document provid
 
 3. Set up environment variables:
    ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
+   # Create a .env file with your configuration
+   # Required variables: DATABASE_URL, REDIS_URL, CELERY_BROKER_URL,
+   # GITHUB_WEBHOOK_SECRET, OPENAI_API_KEY
+   # See config.yaml for the full list of configurable settings
    ```
 
 4. Start infrastructure services with Docker:

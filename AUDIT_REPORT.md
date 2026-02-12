@@ -12,9 +12,9 @@ AutoResolve is a well-architected automated GitHub issue resolution system. The 
 
 | Severity | Count | Status |
 |----------|-------|--------|
-| Critical | 2 | Fixed in this commit |
-| High | 4 | Fixed in this commit |
-| Medium | 6 | Documented |
+| Critical | 2 | Fixed |
+| High | 4 | Fixed |
+| Medium | 6 | 3 Fixed, 3 Open |
 | Low | 5 | Documented |
 
 ---
@@ -167,34 +167,27 @@ else:
 
 ### 7. Default Credentials in Configuration
 
-**Location:** `app/config.py:198-199, 217`
+**Location:** `app/config.py`
 **Severity:** MEDIUM
-**Status:** DOCUMENTED
+**Status:** FIXED (Phase 2)
 
 **Description:**
-Default credentials are hardcoded:
-```python
-url: str = "postgresql://autoresolve:password@localhost:5432/autoresolve"
-broker_url: str = "amqp://guest:guest@localhost:5672//"
-```
+Default credentials were hardcoded for database and broker URLs.
 
-**Recommendation:** Remove default credentials and require explicit configuration. Add startup validation to ensure production deployments have proper credentials set.
+**Resolution:** Default values changed to empty strings. Startup validation via `validate_settings()` now ensures production deployments have proper credentials set.
 
 ---
 
 ### 8. Limited Language Syntax Validation
 
-**Location:** `modules/fix_generator.py:400-420`
+**Location:** `modules/fix_generator.py`
 **Severity:** MEDIUM
-**Status:** DOCUMENTED
+**Status:** RESOLVED (Phase 1)
 
 **Description:**
-Syntax validation only covers Python and Node. Go, Rust, and Java patches are not syntax-checked before being proposed.
+Syntax validation only covered Python and Node. Go, Rust, and Java patches were not syntax-checked.
 
-**Recommendation:** Add syntax validation for all supported languages:
-- Go: `go build` or `gofmt`
-- Rust: `rustfmt --check` or `cargo check`
-- Java: `javac` syntax check
+**Resolution:** Multi-language support was removed in Phase 1 (Cut). AutoResolve is now Python-only, and Python syntax validation via `ast.parse()` is fully implemented.
 
 ---
 
@@ -229,16 +222,16 @@ with Session() as session:
 
 ---
 
-### 11. Missing Retry Logic for GitHub API
+### 11. Retry Logic for GitHub API
 
 **Location:** `services/github_service.py`
 **Severity:** MEDIUM
-**Status:** DOCUMENTED
+**Status:** FIXED
 
 **Description:**
-GitHub API calls don't implement retry logic for transient failures (rate limits, network errors).
+GitHub API calls initially lacked retry logic for transient failures.
 
-**Recommendation:** Implement exponential backoff retry using tenacity or httpx's built-in retry.
+**Resolution:** `GitHubService` now implements exponential backoff with rate-limit awareness, including `Retry-After` header handling and 429 response code retry logic (`services/github_service.py:30-88`).
 
 ---
 
@@ -325,7 +318,7 @@ Error messages use inconsistent formatting and don't always include enough conte
 2. **Security-first approach** - Security scanning before any automated changes, human approval required
 3. **Comprehensive audit logging** - Full event trail for compliance and debugging
 4. **Sandbox isolation** - Docker containers with network disabled for safe code execution
-5. **Multi-language support** - Framework for Python, Node, Go, Rust, Java
+5. **Python-focused depth** - Deep Python support with AST parsing, syntax validation, and targeted security scanning
 6. **Graceful degradation** - Fallback polling for missed webhooks
 
 ### Areas for Improvement
@@ -350,10 +343,10 @@ Error messages use inconsistent formatting and don't always include enough conte
 
 ## Recommendations for Production Deployment
 
-1. **Mandatory:** Set all secrets via environment variables, never use defaults
-2. **Mandatory:** Enable webhook signature verification
+1. **Mandatory:** Set all secrets via environment variables, never use defaults *(enforced via `validate_settings()`)*
+2. **Mandatory:** Enable webhook signature verification *(now fails closed if not configured)*
 3. **Recommended:** Add rate limiting to API endpoints
-4. **Recommended:** Implement comprehensive integration tests
+4. ~~**Recommended:** Implement comprehensive integration tests~~ *(Done: 29 integration tests added in Phase 4)*
 5. **Recommended:** Set up monitoring dashboards for processing metrics
 6. **Recommended:** Review and harden Docker container security further
 7. **Optional:** Consider adding support for GitHub App authentication instead of PAT

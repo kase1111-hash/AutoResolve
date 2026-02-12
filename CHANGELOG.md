@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Project documentation files (CONTRIBUTING.md, CHANGELOG.md, SECURITY.md)
 - GitHub issue and pull request templates
+- Cross-database compatible JSON type (`models/compat.py`) for PostgreSQL/SQLite compatibility
+- End-to-end integration test suite (29 tests) covering the full pipeline
+- Cached database engine and session factory for connection pool reuse
+- Unified session management pattern across FastAPI routes and Celery tasks
+
+### Changed
+- Refocused project to Python-only (removed multi-language support for Go, Rust, Java, Node.js)
+- Replaced `datetime.utcnow()` with `datetime.now(timezone.utc)` throughout codebase
+- Deepened security audit pipeline with expanded CWE mappings
+- Improved sandbox reproduction match scoring
+- Fixed diff application to preserve directory structure
+- Switched to tiktoken for accurate token estimation in fix generation
+
+### Removed
+- Multi-language sandbox images and syntax validators (Go, Rust, Java, Node.js)
+- Notification service (`services/notification_service.py`) - Slack/email integration deferred
+- Observability plumbing (Sentry DSN, Prometheus config) - deferred to production deployment
+- Language detector utility (`utils/language_detector.py`)
+- Node.js sandbox Dockerfile (`docker/sandbox/Dockerfile.node`)
+- Unused dependencies: PyGithub, gitpython, spacy, sentry-sdk, prometheus-client, locust
 
 ## [1.0.0] - 2026-01-22
 
@@ -32,8 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker sandbox environments for safe issue reproduction
 - Utility modules:
   - Diff parser for unified diff handling
-  - Language detector for multi-language support
   - Error signature extraction
+  - Webhook signature verification
   - Structured logging with structlog
 - Jinja2 templates for GitHub comments and LLM prompts
 - Comprehensive test suite with pytest

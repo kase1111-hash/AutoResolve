@@ -76,10 +76,10 @@ AutoResolve monitors GitHub repositories for bug reports, validates their reprod
 │                                                                                 │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                         EXTERNAL SERVICES                                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
-│  │  GitHub API  │  │  OpenAI API  │  │   Docker     │  │  Slack/SMTP  │        │
-│  │  (Issues,PRs)│  │  (GPT-5)     │  │  (Sandbox)   │  │  (Notify)    │        │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                          │
+│  │  GitHub API  │  │  OpenAI API  │  │   Docker     │                          │
+│  │  (Issues,PRs)│  │  (GPT-4)     │  │  (Sandbox)   │                          │
+│  └──────────────┘  └──────────────┘  └──────────────┘                          │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -162,7 +162,6 @@ FilterConfig = {
     "trigger_labels": ["bug", "error", "defect", "crash", "regression"],
     "trigger_keywords": [
         "TypeError", "ValueError", "AttributeError", "KeyError",
-        "NullPointerException", "IndexOutOfBounds", "SegmentationFault",
         "traceback", "stack trace", "exception", "fails", "broken",
         "doesn't work", "error when", "crash when"
     ],
@@ -292,8 +291,7 @@ MonitoringConfig = {
                               │
                               ▼
                     ┌─────────────────┐
-                    │  spaCy NER      │
-                    │  (Fallback)     │
+                    │  Regex Fallback │
                     │  • File paths   │
                     │  • Function names│
                     │  • Error types  │
@@ -524,42 +522,15 @@ SANDBOX_IMAGES = {
         "3.10": "python:3.10-slim",
         "3.11": "python:3.11-slim",
         "3.12": "python:3.12-slim"
-    },
-    "node": {
-        "default": "node:20-slim",
-        "18": "node:18-slim",
-        "20": "node:20-slim"
-    },
-    "go": {
-        "default": "golang:1.21-alpine"
-    },
-    "rust": {
-        "default": "rust:1.75-slim"
-    },
-    "java": {
-        "default": "eclipse-temurin:21-jdk"
     }
 }
 
-# Default test commands per language
+# Default test commands (Python-only)
 DEFAULT_TEST_COMMANDS = {
     "python": [
         "pip install -r requirements.txt 2>/dev/null || true",
         "pip install pytest 2>/dev/null || true",
         "pytest -v --tb=short 2>&1 || python -m unittest discover 2>&1"
-    ],
-    "node": [
-        "npm install 2>/dev/null || true",
-        "npm test 2>&1"
-    ],
-    "go": [
-        "go test ./... 2>&1"
-    ],
-    "rust": [
-        "cargo test 2>&1"
-    ],
-    "java": [
-        "mvn test 2>&1 || gradle test 2>&1"
     ]
 }
 ```
@@ -595,7 +566,7 @@ ValidationConfig = {
 | Function | Description |
 |----------|-------------|
 | `generate_fix_prompt()` | Build LLM prompt with full context |
-| `call_llm()` | Request patch from GPT-5 / Copilot |
+| `call_llm()` | Request patch from LLM (OpenAI) |
 | `parse_diff()` | Extract unified diff from response |
 | `validate_syntax()` | AST parse to verify syntactic correctness |
 | `validate_diff_applies()` | Test that patch applies cleanly |
@@ -606,7 +577,7 @@ ValidationConfig = {
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  CodeContext    │───▶│   Prompt        │───▶│     LLM         │
-│  + ErrorSig     │    │   Builder       │    │   (GPT-5)       │
+│  + ErrorSig     │    │   Builder       │    │   (GPT-4)       │
 └─────────────────┘    └─────────────────┘    └────────┬────────┘
                                                        │
                                                        ▼
@@ -730,16 +701,11 @@ FUNCTION validate_fix(diff: str, repo_dir: str, language: str) -> FixValidation:
         
         FOR file_change IN parsed.files:
             file_path = repo_dir / file_change.path
-            
+
             IF language == "python":
                 # Validate Python syntax
                 with open(file_path) as f:
                     ast.parse(f.read())
-            ELIF language == "javascript" OR language == "typescript":
-                # Validate JS/TS syntax with esprima or tsc
-                result = subprocess.run(["node", "--check", file_path], capture_output=True)
-                IF result.returncode != 0:
-                    RAISE SyntaxError(result.stderr.decode())
         
         RETURN FixValidation(valid=True, parsed_diff=parsed)
     
@@ -853,7 +819,7 @@ DiffLine = {
 
 ```python
 FixGenerationConfig = {
-    "llm_model": "gpt-5-code",
+    "llm_model": "gpt-4",
     "llm_temperature": 0.2,
     "llm_max_tokens": 4096,
     "max_generation_attempts": 3,
@@ -1180,7 +1146,6 @@ SecurityAuditConfig = {
 | `poll_for_approval()` | Check for maintainer response |
 | `create_pull_request()` | Open PR with the patch |
 | `auto_merge_pr()` | Merge if permissions allow |
-| `notify_stakeholders()` | Send Slack/email notifications |
 | `handle_rejection()` | Process declined proposals |
 
 #### 2.5.2 Approval Workflow
@@ -1488,44 +1453,7 @@ PullRequestResult = {
 }
 ```
 
-#### 2.5.8 Notification Integration
-
-```python
-FUNCTION notify_stakeholders(event: str, data: Dict) -> None:
-    """
-    Send notifications via configured channels.
-    """
-    IF NotificationConfig.slack_enabled:
-        message = format_slack_message(event, data)
-        slack_api.post_message(
-            channel=NotificationConfig.slack_channel,
-            blocks=message
-        )
-    
-    IF NotificationConfig.email_enabled:
-        recipients = get_notification_recipients(data.repo_full_name)
-        email = format_email(event, data)
-        smtp.send(
-            to=recipients,
-            subject=email.subject,
-            body=email.body
-        )
-
-# Notification events
-NOTIFICATION_EVENTS = [
-    "issue.validated",
-    "fix.generated",
-    "security.critical_finding",
-    "approval.pending",
-    "approval.approved",
-    "approval.rejected",
-    "approval.expired",
-    "pr.created",
-    "pr.merged"
-]
-```
-
-#### 2.5.9 Configuration
+#### 2.5.8 Configuration
 
 ```python
 ApprovalConfig = {
@@ -1538,18 +1466,6 @@ ApprovalConfig = {
     "branch_prefix": "autoresolve/fix-",
     "pr_labels": ["automated", "autoresolve"],
     "close_issue_on_merge": True
-}
-
-NotificationConfig = {
-    "slack_enabled": False,
-    "slack_webhook_url": str,
-    "slack_channel": "#autoresolve",
-    "email_enabled": False,
-    "smtp_host": str,
-    "smtp_port": 587,
-    "smtp_user": str,
-    "smtp_password": str,
-    "email_from": "autoresolve@example.com"
 }
 ```
 
@@ -1967,7 +1883,7 @@ validation:
 # Fix Generation
 fix_generation:
   llm_provider: "openai"
-  llm_model: "gpt-5-code"
+  llm_model: "gpt-4"
   llm_temperature: 0.2
   max_attempts: 3
   max_diff_lines: 200
@@ -1994,17 +1910,6 @@ approval:
   auto_merge_enabled: true
   auto_merge_method: "squash"
 
-# Notifications
-notifications:
-  slack:
-    enabled: false
-    webhook_url: "${SLACK_WEBHOOK_URL}"
-    channel: "#autoresolve"
-  email:
-    enabled: false
-    smtp_host: "smtp.example.com"
-    smtp_port: 587
-
 # Database
 database:
   url: "postgresql://autoresolve:${DB_PASSWORD}@localhost:5432/autoresolve"
@@ -2030,12 +1935,6 @@ logging:
   level: "INFO"
   format: "json"
   output: "stdout"
-
-# Observability
-observability:
-  sentry_dsn: "${SENTRY_DSN}"
-  prometheus_enabled: true
-  prometheus_port: 9090
 ```
 
 ---
@@ -2079,19 +1978,18 @@ autoresolve/
 ├── models/
 │   ├── __init__.py
 │   ├── database.py                 # SQLAlchemy models
-│   └── schemas.py                  # Pydantic models
+│   ├── schemas.py                  # Pydantic models
+│   └── compat.py                   # Cross-database JSON type
 │
 ├── services/
 │   ├── __init__.py
 │   ├── github_service.py
 │   ├── llm_service.py
-│   ├── docker_service.py
-│   └── notification_service.py
+│   └── docker_service.py
 │
 ├── utils/
 │   ├── __init__.py
 │   ├── diff_parser.py
-│   ├── language_detector.py
 │   ├── signature.py
 │   └── logging.py
 │
@@ -2123,8 +2021,7 @@ autoresolve/
 │   ├── Dockerfile
 │   ├── Dockerfile.worker
 │   └── sandbox/
-│       ├── Dockerfile.python
-│       └── Dockerfile.node
+│       └── Dockerfile.python
 │
 ├── scripts/
 │   ├── setup_github_app.py
@@ -2146,11 +2043,9 @@ autoresolve/
 | Test Type | Tool | Target | Coverage Goal |
 |-----------|------|--------|---------------|
 | Unit | pytest | All modules | ≥ 90% |
-| Integration | pytest + docker-compose | End-to-end pipeline | ≥ 80% |
+| Integration | pytest | End-to-end pipeline | ≥ 80% |
 | API | pytest-httpx | REST endpoints | 100% |
-| Security | bandit, safety | Codebase | 0 high/critical |
-| Load | locust | Webhook ingestion | 100 req/s |
-| Contract | schemathesis | OpenAPI spec | 100% |
+| Security | bandit | Codebase | 0 high/critical |
 
 ### 8.2 Key Test Scenarios
 
@@ -2199,32 +2094,7 @@ def test_security_scanner_detects_injection():
     assert report.recommendation == "reject"
 ```
 
-### 8.3 Load Testing
-
-```python
-# locustfile.py
-
-from locust import HttpUser, task, between
-
-class WebhookUser(HttpUser):
-    wait_time = between(0.1, 0.5)
-    
-    @task
-    def send_issue_webhook(self):
-        payload = generate_issue_webhook_payload()
-        signature = compute_signature(payload)
-        
-        self.client.post(
-            "/webhook/github",
-            json=payload,
-            headers={
-                "X-GitHub-Event": "issues",
-                "X-Hub-Signature-256": signature
-            }
-        )
-```
-
-### 8.4 Metrics
+### 8.3 Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
@@ -2406,7 +2276,7 @@ jobs:
 
 ```
 # Core
-python>=3.11
+python-multipart>=0.0.6
 fastapi>=0.109
 uvicorn>=0.27
 pydantic>=2.5
@@ -2424,16 +2294,9 @@ amqp>=5.2
 # Redis
 redis>=5.0
 
-# GitHub
-PyGithub>=2.1
-gitpython>=3.1
-
 # LLM
 openai>=1.0
 tiktoken>=0.5
-
-# NLP
-spacy>=3.7
 
 # Security Scanning
 bandit>=1.7
@@ -2458,11 +2321,8 @@ pytest>=7.4
 pytest-asyncio>=0.23
 pytest-cov>=4.1
 pytest-httpx>=0.28
-locust>=2.20
 
-# Observability
-sentry-sdk>=1.39
-prometheus-client>=0.19
+# Structured Logging
 structlog>=24.1
 ```
 
@@ -2470,7 +2330,7 @@ structlog>=24.1
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Semgrep | latest | Multi-language SAST |
+| Semgrep | latest | Python SAST with OWASP rules |
 | Bandit | 1.7+ | Python SAST |
 | Docker | 24+ | Sandbox isolation |
 | PostgreSQL | 16 | Primary database |
@@ -2488,7 +2348,6 @@ structlog>=24.1
 | Security sandbox escape | Low | Critical | Network isolation, resource limits, read-only mounts |
 | LLM generates vulnerable code | Medium | High | Mandatory security scan, block critical findings |
 | Webhook replay attacks | Low | Medium | Signature verification, idempotency keys |
-| Multi-language support gaps | Medium | Low | Graceful degradation, configurable handlers |
 | Cost overrun (LLM tokens) | Medium | Medium | Token budgets, caching, rate limiting |
 
 ---
