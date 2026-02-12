@@ -24,7 +24,9 @@ from sqlalchemy import (
     Text,
     create_engine,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
+
+from models.compat import JSONType
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -56,7 +58,7 @@ class Issue(Base):
     repo_url: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    labels: Mapped[dict] = mapped_column(JSONB, default=list)
+    labels: Mapped[dict] = mapped_column(JSONType, default=list)
     author: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     github_created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -101,9 +103,9 @@ class Validation(Base):
     validity_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     match_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     error_signature: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    issue_context: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    reproduction_result: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    code_context: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    issue_context: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    reproduction_result: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    code_context: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
     sandbox_image: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     validated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
@@ -132,8 +134,8 @@ class FixProposal(Base):
         Integer, ForeignKey("validations.id"), nullable=True
     )
     suggested_patch: Mapped[str] = mapped_column(Text, nullable=False)
-    parsed_diff: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    affected_files: Mapped[dict] = mapped_column(JSONB, default=list)
+    parsed_diff: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    affected_files: Mapped[dict] = mapped_column(JSONType, default=list)
     lines_added: Mapped[int] = mapped_column(Integer, default=0)
     lines_removed: Mapped[int] = mapped_column(Integer, default=0)
     llm_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -174,9 +176,9 @@ class SecurityReport(Base):
     has_vulnerabilities: Mapped[bool] = mapped_column(Boolean, nullable=False)
     risk_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     findings_count: Mapped[int] = mapped_column(Integer, default=0)
-    findings_by_severity: Mapped[dict] = mapped_column(JSONB, default=dict)
-    findings: Mapped[dict] = mapped_column(JSONB, default=list)
-    scanners_used: Mapped[dict] = mapped_column(JSONB, default=list)
+    findings_by_severity: Mapped[dict] = mapped_column(JSONType, default=dict)
+    findings: Mapped[dict] = mapped_column(JSONType, default=list)
+    scanners_used: Mapped[dict] = mapped_column(JSONType, default=list)
     dynamic_scan_passed: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     recommendation: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     scanned_at: Mapped[datetime] = mapped_column(
@@ -241,7 +243,7 @@ class AuditLog(Base):
     entity_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     entity_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     actor: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    details: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    details: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
 
     __table_args__ = (
         Index("idx_audit_timestamp", "timestamp"),
@@ -261,7 +263,7 @@ class MonitoredRepo(Base):
     webhook_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     webhook_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    settings: Mapped[dict] = mapped_column(JSONB, default=dict)
+    settings: Mapped[dict] = mapped_column(JSONType, default=dict)
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now
     )
@@ -274,21 +276,36 @@ class MonitoredRepo(Base):
 
 # Database connection utilities
 
+_engine = None
+_session_factory = None
+
 
 def get_engine():
-    """Create database engine."""
-    settings = get_settings()
-    return create_engine(
-        settings.database.url,
-        pool_size=settings.database.pool_size,
-        pool_pre_ping=True,
-    )
+    """Get or create the cached database engine."""
+    global _engine
+    if _engine is None:
+        settings = get_settings()
+        _engine = create_engine(
+            settings.database.url,
+            pool_size=settings.database.pool_size,
+            pool_pre_ping=True,
+        )
+    return _engine
 
 
 def get_session_factory():
-    """Create session factory."""
-    engine = get_engine()
-    return sessionmaker(bind=engine)
+    """Get or create the cached session factory."""
+    global _session_factory
+    if _session_factory is None:
+        _session_factory = sessionmaker(bind=get_engine())
+    return _session_factory
+
+
+def reset_engine():
+    """Reset cached engine and session factory (for testing)."""
+    global _engine, _session_factory
+    _engine = None
+    _session_factory = None
 
 
 def init_db():
@@ -298,10 +315,36 @@ def init_db():
 
 
 def get_db():
-    """Get database session for dependency injection."""
+    """Get database session for FastAPI dependency injection."""
     SessionLocal = get_session_factory()
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def get_db_session():
+    """Get a database session as a context manager for Celery tasks and modules.
+
+    Usage:
+        with get_db_session() as db:
+            db.query(...)
+            # auto-commits on success, rolls back on exception
+    """
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _session_scope():
+        SessionLocal = get_session_factory()
+        session = SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    return _session_scope()

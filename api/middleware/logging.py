@@ -165,20 +165,17 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
     ):
         """Create an audit log entry in the database."""
         try:
-            from models.database import AuditLog, get_session_factory
+            from models.database import AuditLog, get_db_session
 
-            SessionLocal = get_session_factory()
-            db = SessionLocal()
+            # Determine actor
+            actor = None
+            if hasattr(request.state, "user"):
+                actor = request.state.user
+            elif request.headers.get("X-API-Key"):
+                actor = f"api_key:{request.headers.get('X-API-Key')[:8]}"
 
-            try:
-                # Determine actor
-                actor = None
-                if hasattr(request.state, "user"):
-                    actor = request.state.user
-                elif request.headers.get("X-API-Key"):
-                    actor = f"api_key:{request.headers.get('X-API-Key')[:8]}"
-
-                # Create entry
+            # Create entry
+            with get_db_session() as db:
                 entry = AuditLog(
                     event_type=f"api.{request.method.lower()}.{request.url.path.replace('/', '.')}",
                     actor=actor,
@@ -190,12 +187,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                         "request_id": get_request_id(request),
                     },
                 )
-
                 db.add(entry)
-                db.commit()
-
-            finally:
-                db.close()
 
         except Exception as e:
             logger.error(f"Failed to create audit log entry: {e}")

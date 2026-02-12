@@ -2,7 +2,7 @@
 Tests for the monitoring module.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from app.config import FilterConfig
@@ -24,7 +24,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "This is a bug report with enough content to pass the minimum length requirement.",
             "title": "Bug report",
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -37,7 +37,7 @@ class TestShouldProcess:
             "user": {"login": "dependabot"},
             "body": "This is a bug report with enough content to pass the minimum length requirement.",
             "title": "Bug report",
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -50,7 +50,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "Short",
             "title": "Bug",
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -58,7 +58,7 @@ class TestShouldProcess:
 
     def test_excludes_old_issues(self):
         """Issues older than max_age_days should be filtered out."""
-        old_date = (datetime.utcnow() - timedelta(days=60)).isoformat() + "Z"
+        old_date = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat() + "Z"
         issue = {
             "labels": [{"name": "bug"}],
             "user": {"login": "testuser"},
@@ -77,7 +77,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "This is a bug report with enough content to pass the minimum length requirement.",
             "title": "Bug report",
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -90,7 +90,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "I'm getting a TypeError when running the application. Here's the traceback...",
             "title": "Application crashes",
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
         config = FilterConfig()
 
@@ -103,7 +103,7 @@ class TestShouldProcess:
             "user": {"login": "testuser"},
             "body": "It would be nice to have a dark mode feature in the application settings.",
             "title": "Feature request: dark mode",
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat() + "Z",
         }
         config = FilterConfig()
 

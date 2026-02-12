@@ -164,13 +164,10 @@ async def get_stats():
         FixProposal,
         Issue,
         SecurityReport,
-        get_session_factory,
+        get_db_session,
     )
 
-    SessionLocal = get_session_factory()
-    db = SessionLocal()
-
-    try:
+    with get_db_session() as db:
         # Count issues by status
         issues_by_status = dict(
             db.query(Issue.status, func.count(Issue.id)).group_by(Issue.status).all()
@@ -225,8 +222,6 @@ async def get_stats():
             "average_fix_time_seconds": round(average_fix_time, 2),
             "security_findings_blocked": security_blocked,
         }
-    finally:
-        db.close()
 
 
 if __name__ == "__main__":

@@ -25,19 +25,23 @@ from models.database import (
     Validation,
     get_session_factory,
 )
+
+# Session management note:
+# process_issue and create_pr use manual session management (get_session_factory)
+# because they need intermediate commits and fine-grained transaction control.
+# Simpler callers should use get_db_session() from models.database.
 from models.schemas import QueuedIssue
 
 logger = logging.getLogger(__name__)
 
 
 def _run_async(coro: Any) -> Any:
-    """Run an async coroutine in a new event loop."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+    """Run an async coroutine from a synchronous Celery task.
+
+    Uses asyncio.run() which creates a new event loop, runs the coroutine,
+    and properly cleans up (closing async generators, executors, etc).
+    """
+    return asyncio.run(coro)
 
 
 def _create_queued_issue(issue: Issue) -> QueuedIssue:
@@ -283,17 +287,9 @@ def create_pr(self, proposal_id: int, approved_by: str, auto_merge: bool = True)
             status="approved", approved_by=approved_by, auto_merge=auto_merge
         )
 
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        try:
-            pr_result = loop.run_until_complete(
-                create_pull_request(fix_proposal, approval, issue.title)
-            )
-        finally:
-            loop.close()
+        pr_result = _run_async(
+            create_pull_request(fix_proposal, approval, issue.title)
+        )
 
         # Update approval record
         db_approval = (

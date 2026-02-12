@@ -2,7 +2,7 @@
 Tests for the approval module.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -145,7 +145,7 @@ class TestApprovalWorkflow:
                 {
                     "user": {"login": "maintainer"},
                     "body": "@autoresolve approve",
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             ]
         )
@@ -159,7 +159,7 @@ class TestApprovalWorkflow:
             issue_id=123,
             repo_full_name="test/repo",
             suggested_patch="diff",
-            generated_at=datetime.utcnow() - timedelta(hours=1),
+            generated_at=datetime.now(timezone.utc) - timedelta(hours=1),
         )
 
         with patch(
@@ -178,7 +178,7 @@ class TestApprovalWorkflow:
                 {
                     "user": {"login": "maintainer"},
                     "body": "@autoresolve reject: Not the right fix",
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             ]
         )
@@ -192,7 +192,7 @@ class TestApprovalWorkflow:
             issue_id=123,
             repo_full_name="test/repo",
             suggested_patch="diff",
-            generated_at=datetime.utcnow() - timedelta(hours=1),
+            generated_at=datetime.now(timezone.utc) - timedelta(hours=1),
         )
 
         with patch(
@@ -219,7 +219,7 @@ class TestApprovalWorkflow:
             issue_id=123,
             repo_full_name="test/repo",
             suggested_patch="diff",
-            generated_at=datetime.utcnow() - timedelta(hours=1),
+            generated_at=datetime.now(timezone.utc) - timedelta(hours=1),
         )
 
         with patch(

@@ -565,12 +565,9 @@ async def handle_rejection(proposal: FixProposal, approval: ApprovalResult) -> N
     """
     from models.database import AuditLog
     from models.database import FixProposal as DBFixProposal
-    from models.database import get_session_factory
+    from models.database import get_db_session
 
-    SessionLocal = get_session_factory()
-    db = SessionLocal()
-
-    try:
+    with get_db_session() as db:
         # Update proposal status
         db_proposal = (
             db.query(DBFixProposal)
@@ -594,20 +591,9 @@ async def handle_rejection(proposal: FixProposal, approval: ApprovalResult) -> N
         )
         db.add(log)
 
-        # Single commit for both operations (atomic transaction)
-        db.commit()
-
-        logger.info(
-            f"Proposal {proposal.proposal_id} rejected by {approval.rejected_by}"
-        )
-
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to handle rejection for {proposal.proposal_id}: {e}")
-        raise
-
-    finally:
-        db.close()
+    logger.info(
+        f"Proposal {proposal.proposal_id} rejected by {approval.rejected_by}"
+    )
 
 
 async def handle_expiry(proposal: FixProposal) -> None:
@@ -633,12 +619,9 @@ async def handle_expiry(proposal: FixProposal) -> None:
 
     # Update database
     from models.database import FixProposal as DBFixProposal
-    from models.database import get_session_factory
+    from models.database import get_db_session
 
-    SessionLocal = get_session_factory()
-    db = SessionLocal()
-
-    try:
+    with get_db_session() as db:
         db_proposal = (
             db.query(DBFixProposal)
             .filter(DBFixProposal.proposal_id == proposal.proposal_id)
@@ -647,16 +630,7 @@ async def handle_expiry(proposal: FixProposal) -> None:
 
         if db_proposal:
             db_proposal.status = "expired"
-            db.commit()
 
-        logger.info(f"Proposal {proposal.proposal_id} expired")
-
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to handle expiry for {proposal.proposal_id}: {e}")
-        raise
-
-    finally:
-        db.close()
+    logger.info(f"Proposal {proposal.proposal_id} expired")
 
 
